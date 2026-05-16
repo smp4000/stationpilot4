@@ -1,5 +1,7 @@
 <?php
 namespace App\Providers\Filament;
+use App\Http\Middleware\CheckTenantStatus;
+use App\Http\Middleware\EnsureTenantContext;
 use App\Http\Middleware\SetPartnerPermissionsTeam;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -77,7 +79,9 @@ class AppPanelProvider extends PanelProvider
             ])
             ->authMiddleware([
                 Authenticate::class,
-                SetPartnerPermissionsTeam::class,
+                SetPartnerPermissionsTeam::class,  // P03: setzt Team-ID + tenant_id in Session
+                EnsureTenantContext::class,         // P04: verifiziert Session-Konsistenz
+                CheckTenantStatus::class,           // P04: prüft Abo-Status
             ]);
     }
 }
