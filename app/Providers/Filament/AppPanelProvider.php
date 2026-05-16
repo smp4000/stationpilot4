@@ -1,5 +1,6 @@
 <?php
 namespace App\Providers\Filament;
+use App\Http\Middleware\SetPartnerPermissionsTeam;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -76,6 +77,7 @@ class AppPanelProvider extends PanelProvider
             ])
             ->authMiddleware([
                 Authenticate::class,
+                SetPartnerPermissionsTeam::class,
             ]);
     }
 }
