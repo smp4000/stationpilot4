@@ -2,24 +2,25 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
+/**
+ * Haupt-Seeder — ruft alle Sub-Seeder in der richtigen Reihenfolge auf.
+ *
+ * Reihenfolge wichtig:
+ * 1. TestUserSeeder    — User + Tenants (keine Rollen)
+ * 2. (Prompt 03) RolesAndPermissionsSeeder — Rollen + Permissions
+ * 3. (Prompt 03) RoleAssignmentSeeder      — Rollen den Testusern zuweisen
+ */
 class DatabaseSeeder extends Seeder
 {
-    use WithoutModelEvents;
-
-    /**
-     * Seed the application's database.
-     */
     public function run(): void
     {
-        // User::factory(10)->create();
-
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
+        $this->call([
+            TestUserSeeder::class,
+            // Weitere Seeder kommen in späteren Prompts:
+            // RolesAndPermissionsSeeder::class,
+            // RoleAssignmentSeeder::class,
         ]);
     }
 }
