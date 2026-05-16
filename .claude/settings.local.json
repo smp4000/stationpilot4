@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(composer --version)",
+      "PowerShell(php --version)",
+      "PowerShell([System.IO.Directory]::GetFileSystemEntries\\(\"C:\\\\xampp\\\\htdocs\\\\stationpilot4\"\\) | ForEach-Object { $_ })",
+      "PowerShell(Set-Location \"C:\\\\xampp\\\\htdocs\\\\stationpilot4\"; composer require --% filament/filament:\"^5.6\" 2>&1 | Select-Object -Last 10)",
+      "PowerShell(& \"C:\\\\xampp\\\\mysql\\\\bin\\\\mysql.exe\" -u root -e \"CREATE DATABASE IF NOT EXISTS stationpilot4 CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;\" 2>&1; Write-Host \"Exit: $LASTEXITCODE\")"
+    ]
+  }
+}
