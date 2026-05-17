@@ -11,7 +11,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        // Team-ID für Spatie Permission bei jedem Web-Request setzen —
+        // auch für Livewire-AJAX-Requests, die nicht durch Filamens authMiddleware laufen.
+        $middleware->web(append: [
+            \App\Http\Middleware\SetPartnerPermissionsTeam::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
