@@ -132,10 +132,11 @@ class RolesAndPermissionsSeeder extends Seeder
             'partner.reports.view',
         ]);
 
-        // Mitarbeiter — Nur Dashboard + zugewiesene Stationen ansehen
+        // Mitarbeiter — Dashboard + Stationen ansehen (Liste + Detailansicht)
         $employee = Role::findOrCreate('employee', 'web');
         $employee->syncPermissions([
             'partner.dashboard.view',
+            'partner.stations.list',
             'partner.stations.view',
         ]);
 

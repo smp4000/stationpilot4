@@ -20,6 +20,7 @@ class DatabaseSeeder extends Seeder
             TestUserSeeder::class,
             RolesAndPermissionsSeeder::class,
             RoleAssignmentSeeder::class,
+            StationSeeder::class,
         ]);
     }
 }
