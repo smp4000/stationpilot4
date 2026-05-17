@@ -1,20 +1,27 @@
 <?php
+
 namespace App\Providers;
+
+use App\Listeners\LogFailedLogin;
+use App\Listeners\LogSuccessfulLogin;
+use App\Listeners\LogSuccessfulLogout;
+use Illuminate\Auth\Events\Failed;
+use Illuminate\Auth\Events\Login;
+use Illuminate\Auth\Events\Logout;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
-/**
- * Zentraler Application Service Provider.
- * Wird in späteren Prompts mit Audit-Logging + SMTP-Override erweitert.
- */
+
 class AppServiceProvider extends ServiceProvider
 {
     public function register(): void {}
+
     public function boot(): void
     {
-        // APP_URL als Root-URL erzwingen.
-        // Wichtig für: Einladungslinks, E-Mail-Links, QR-Codes —
-        // wenn der Server über 127.0.0.1 läuft aber externe Links
-        // (z.B. für Handy) auf APP_URL zeigen sollen.
         URL::forceRootUrl(config('app.url'));
+
+        Event::listen(Login::class, LogSuccessfulLogin::class);
+        Event::listen(Logout::class, LogSuccessfulLogout::class);
+        Event::listen(Failed::class, LogFailedLogin::class);
     }
 }

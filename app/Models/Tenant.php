@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\Auditable;
 use App\Traits\HasUlid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -17,7 +18,9 @@ use Illuminate\Support\Str;
  */
 class Tenant extends Model
 {
-    use HasFactory, HasUlid, SoftDeletes;
+    use HasFactory, HasUlid, SoftDeletes, Auditable;
+
+    protected array $auditExclude = ['updated_at'];
 
     protected $fillable = [
         'owner_id',

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\Auditable;
 use App\Traits\HasUlid;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
@@ -31,7 +32,9 @@ use Spatie\Permission\Traits\HasRoles;
  */
 class User extends Authenticatable implements MustVerifyEmail, FilamentUser
 {
-    use HasFactory, HasUlid, HasApiTokens, Notifiable, SoftDeletes, HasRoles;
+    use HasFactory, HasUlid, HasApiTokens, Notifiable, SoftDeletes, HasRoles, Auditable;
+
+    protected array $auditExclude = ['last_login_at', 'last_login_ip', 'remember_token', 'updated_at'];
 
     protected $fillable = [
         'tenant_id',
