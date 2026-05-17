@@ -3,17 +3,22 @@
 namespace App\Filament\App\Resources;
 
 use App\Filament\App\Resources\StationResource\Pages;
+use App\Jobs\EnrichStationJob;
 use App\Models\Station;
+use App\Services\BenzinpreisService;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\RestoreAction;
 use Filament\Actions\ViewAction;
-use Filament\Resources\Resource;
+use Filament\Forms\Components\Actions;
+use Filament\Forms\Components\Actions\Action;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
-use Filament\Forms\Components\Placeholder;
+use Filament\Notifications\Notification;
+use Filament\Resources\Resource;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Tabs;
@@ -314,36 +319,135 @@ class StationResource extends Resource
                             ->columnSpanFull(),
                     ]),
 
-                // ── Tab 7: System ─────────────────────────────
+                // ── Tab 7: System & BenzinpreisService ────────
                 Tab::make('System')
                     ->icon('heroicon-o-information-circle')
                     ->schema([
-                        TextInput::make('ulid')
-                            ->label('Öffentliche ID (ULID)')
-                            ->disabled()
-                            ->dehydrated(false),
 
-                        TextInput::make('benzinpreis_slug')
-                            ->label('BenzinpreisService Slug')
-                            ->nullable()
-                            ->helperText('Wird in P08 automatisch befüllt'),
+                        // ── PLZ-Suche ─────────────────────────────
+                        Section::make('BenzinpreisService — Stationssuche')
+                            ->icon('heroicon-o-magnifying-glass')
+                            ->description('Tankstelle auf benzinpreis.de suchen und verknüpfen.')
+                            ->schema([
+                                TextInput::make('_search_zip')
+                                    ->label('PLZ suchen')
+                                    ->placeholder('z. B. 36093')
+                                    ->maxLength(5)
+                                    ->live()
+                                    ->dehydrated(false)
+                                    ->helperText('5-stellige PLZ eingeben, dann auf "Suchen" klicken.'),
 
-                        TextInput::make('enriched_at')
-                            ->label('Letzter Daten-Import')
-                            ->disabled()
-                            ->dehydrated(false)
-                            ->formatStateUsing(fn($state) => $state
-                                ? \Carbon\Carbon::parse($state)->format('d.m.Y H:i')
-                                : 'Nicht importiert'),
+                                Actions::make([
+                                    Action::make('search_benzinpreis')
+                                        ->label('Suchen')
+                                        ->icon('heroicon-o-magnifying-glass')
+                                        ->action(function (Get $get, Set $set) {
+                                            $zip = $get('_search_zip');
 
-                        TextInput::make('created_at')
-                            ->label('Angelegt am')
-                            ->disabled()
-                            ->dehydrated(false)
-                            ->formatStateUsing(fn($state) => $state
-                                ? \Carbon\Carbon::parse($state)->format('d.m.Y H:i')
-                                : '—'),
-                    ])->columns(2),
+                                            if (! preg_match('/^\d{5}$/', $zip ?? '')) {
+                                                Notification::make()
+                                                    ->title('Ungültige PLZ')
+                                                    ->body('Bitte eine 5-stellige PLZ eingeben.')
+                                                    ->warning()
+                                                    ->send();
+                                                return;
+                                            }
+
+                                            $results = app(BenzinpreisService::class)->searchByZip($zip);
+
+                                            if (empty($results)) {
+                                                Notification::make()
+                                                    ->title('Keine Stationen gefunden')
+                                                    ->body("Für PLZ {$zip} wurden keine Einträge gefunden.")
+                                                    ->warning()
+                                                    ->send();
+                                                return;
+                                            }
+
+                                            $options = collect($results)
+                                                ->mapWithKeys(fn($s) => [$s['slug'] => $s['name'] . ' — ' . $s['street'] . ', ' . $s['city']])
+                                                ->toArray();
+
+                                            $set('_search_results', $options);
+                                            $set('_search_results_json', json_encode($results));
+
+                                            Notification::make()
+                                                ->title(count($results) . ' Stationen gefunden')
+                                                ->success()
+                                                ->send();
+                                        }),
+                                ])->columnSpanFull(),
+
+                                Select::make('_search_results')
+                                    ->label('Gefundene Stationen')
+                                    ->options(fn(Get $get) => $get('_search_results') ?? [])
+                                    ->live()
+                                    ->dehydrated(false)
+                                    ->placeholder('Zuerst PLZ suchen …')
+                                    ->columnSpanFull(),
+
+                                Actions::make([
+                                    Action::make('import_slug')
+                                        ->label('Slug übernehmen & Daten importieren')
+                                        ->icon('heroicon-o-arrow-down-tray')
+                                        ->color('success')
+                                        ->requiresConfirmation()
+                                        ->modalHeading('Slug und Daten importieren?')
+                                        ->modalDescription('Der Slug wird gespeichert und ein Hintergrundjob startet den Daten-Import.')
+                                        ->visible(fn(Get $get) => ! empty($get('_search_results')))
+                                        ->action(function (Get $get, Set $set, $record) {
+                                            $slug = $get('_search_results');
+
+                                            if (! $slug || ! $record) {
+                                                return;
+                                            }
+
+                                            $record->updateQuietly(['benzinpreis_slug' => $slug]);
+                                            $set('benzinpreis_slug', $slug);
+
+                                            EnrichStationJob::dispatch($record);
+
+                                            Notification::make()
+                                                ->title('Import gestartet')
+                                                ->body('Slug gespeichert. Daten werden im Hintergrund importiert.')
+                                                ->success()
+                                                ->send();
+                                        }),
+                                ])->columnSpanFull(),
+                            ])->columns(2),
+
+                        // ── System-Infos ──────────────────────────
+                        Section::make('System-Informationen')
+                            ->icon('heroicon-o-information-circle')
+                            ->collapsed()
+                            ->schema([
+                                TextInput::make('ulid')
+                                    ->label('Öffentliche ID (ULID)')
+                                    ->disabled()
+                                    ->dehydrated(false),
+
+                                TextInput::make('benzinpreis_slug')
+                                    ->label('BenzinpreisService Slug')
+                                    ->nullable()
+                                    ->helperText('Verknüpfung mit benzinpreis.de'),
+
+                                TextInput::make('enriched_at')
+                                    ->label('Letzter Daten-Import')
+                                    ->disabled()
+                                    ->dehydrated(false)
+                                    ->formatStateUsing(fn($state) => $state
+                                        ? \Carbon\Carbon::parse($state)->format('d.m.Y H:i')
+                                        : 'Nicht importiert'),
+
+                                TextInput::make('created_at')
+                                    ->label('Angelegt am')
+                                    ->disabled()
+                                    ->dehydrated(false)
+                                    ->formatStateUsing(fn($state) => $state
+                                        ? \Carbon\Carbon::parse($state)->format('d.m.Y H:i')
+                                        : '—'),
+                            ])->columns(2),
+                    ]),
 
             ])->columnSpanFull(),
         ]);
