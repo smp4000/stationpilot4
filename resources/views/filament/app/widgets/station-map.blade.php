@@ -11,14 +11,25 @@
                 </div>
             </div>
         @else
-            <div id="station-overview-map" style="height:400px;border-radius:8px;z-index:0;"></div>
+            <div id="station-overview-map" style="height:400px;border-radius:8px;"></div>
+
+            @once
+                <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+                <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+            @endonce
+
             <script>
                 (function () {
                     var stationsData = @json($stations);
+                    var attempts = 0;
 
-                    function initMap() {
+                    function tryInit() {
                         var el = document.getElementById('station-overview-map');
-                        if (!el || el._mapInit) return;
+                        if (!el || !window.L) {
+                            if (++attempts < 100) setTimeout(tryInit, 50);
+                            return;
+                        }
+                        if (el._mapInit) return;
                         el._mapInit = true;
 
                         var map = L.map(el);
@@ -48,30 +59,13 @@
                         else if (bounds.length > 1) map.fitBounds(bounds, {padding: [40, 40]});
                     }
 
-                    function loadLeaflet(callback) {
-                        if (window.L) { callback(); return; }
+                    tryInit();
 
-                        var link = document.createElement('link');
-                        link.rel = 'stylesheet';
-                        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-                        link.crossOrigin = '';
-                        document.head.appendChild(link);
-
-                        var script = document.createElement('script');
-                        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-                        script.crossOrigin = '';
-                        script.onload = callback;
-                        document.head.appendChild(script);
-                    }
-
-                    // Sofort initialisieren (div ist bereits im DOM)
-                    loadLeaflet(initMap);
-
-                    // Nach Livewire-Navigation erneut initialisieren
                     document.addEventListener('livewire:navigated', function () {
+                        attempts = 0;
                         var el = document.getElementById('station-overview-map');
                         if (el) el._mapInit = false;
-                        loadLeaflet(initMap);
+                        tryInit();
                     });
                 })();
             </script>
