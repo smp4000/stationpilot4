@@ -5,7 +5,6 @@ namespace App\Filament\App\Resources;
 use App\Filament\App\Resources\StationResource\Pages;
 use App\Jobs\EnrichStationJob;
 use App\Models\Station;
-use App\Services\BenzinpreisService;
 use App\Services\OverpassService;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
@@ -68,7 +67,130 @@ class StationResource extends Resource
         return $schema->components([
             Tabs::make('Station')->tabs([
 
-                // ── Tab 1: Stammdaten ─────────────────────────
+                // ── Tab 1: PLZ-Suche (OpenStreetMap) ─────────
+                Tab::make('PLZ-Suche')
+                    ->icon('heroicon-o-magnifying-glass')
+                    ->schema([
+                        Section::make('Tankstelle per PLZ suchen')
+                            ->icon('heroicon-o-map-pin')
+                            ->description('PLZ eingeben → Koordinaten werden von OpenStreetMap ermittelt und in das Formular übernommen.')
+                            ->schema([
+                                TextInput::make('_search_zip')
+                                    ->label('Postleitzahl')
+                                    ->placeholder('z. B. 36093')
+                                    ->maxLength(5)
+                                    ->live()
+                                    ->dehydrated(false)
+                                    ->helperText('5-stellige PLZ eingeben, dann auf "Suchen" klicken.'),
+
+                                Actions::make([
+                                    Action::make('search_osm')
+                                        ->label('Suchen')
+                                        ->icon('heroicon-o-magnifying-glass')
+                                        ->color('primary')
+                                        ->action(function (Get $get, Set $set) {
+                                            $zip = $get('_search_zip');
+
+                                            if (! preg_match('/^\d{5}$/', $zip ?? '')) {
+                                                Notification::make()
+                                                    ->title('Ungültige PLZ')
+                                                    ->body('Bitte eine 5-stellige PLZ eingeben.')
+                                                    ->warning()
+                                                    ->send();
+                                                return;
+                                            }
+
+                                            $results = app(OverpassService::class)->searchFuelStationsByZip($zip);
+
+                                            if (empty($results)) {
+                                                Notification::make()
+                                                    ->title('Keine Tankstellen gefunden')
+                                                    ->body("OpenStreetMap hat für PLZ {$zip} keine Tankstellen-Einträge.")
+                                                    ->warning()
+                                                    ->send();
+                                                return;
+                                            }
+
+                                            // Koordinaten-Übersicht als Notification
+                                            $lines = collect($results)
+                                                ->map(fn($s) => '• ' . $s['name'] . ' — ' . $s['lat'] . ', ' . $s['lng'])
+                                                ->implode("\n");
+
+                                            Notification::make()
+                                                ->title(count($results) . ' Tankstellen in PLZ ' . $zip)
+                                                ->body($lines)
+                                                ->info()
+                                                ->persistent()
+                                                ->send();
+
+                                            $options = collect($results)
+                                                ->mapWithKeys(fn($s, $i) => [
+                                                    $i => $s['name']
+                                                        . ' — ' . $s['street'] . ' ' . $s['house_number']
+                                                        . ', ' . $s['zip'] . ' ' . $s['city']
+                                                        . '  (' . $s['lat'] . ', ' . $s['lng'] . ')',
+                                                ])
+                                                ->toArray();
+
+                                            $set('_search_results', $options);
+                                            $set('_osm_data_json', json_encode(array_values($results)));
+                                        }),
+                                ])->columnSpanFull(),
+
+                                Select::make('_selected_osm_index')
+                                    ->label('Gefundene Tankstelle auswählen')
+                                    ->options(fn(Get $get) => $get('_search_results') ?? [])
+                                    ->live()
+                                    ->dehydrated(false)
+                                    ->placeholder('Zuerst PLZ suchen …')
+                                    ->columnSpanFull(),
+
+                                Actions::make([
+                                    Action::make('import_osm')
+                                        ->label('Koordinaten & Daten übernehmen')
+                                        ->icon('heroicon-o-arrow-down-tray')
+                                        ->color('success')
+                                        ->visible(fn(Get $get) => $get('_selected_osm_index') !== null)
+                                        ->action(function (Get $get, Set $set) {
+                                            $idx  = $get('_selected_osm_index');
+                                            $json = $get('_osm_data_json');
+
+                                            if ($idx === null || ! $json) {
+                                                return;
+                                            }
+
+                                            $all     = json_decode($json, true);
+                                            $station = $all[$idx] ?? null;
+
+                                            if (! $station) {
+                                                return;
+                                            }
+
+                                            // Stammdaten
+                                            if ($station['name'])  $set('name', $station['name']);
+                                            if ($station['brand']) $set('brand', $station['brand']);
+
+                                            // Adresse
+                                            if ($station['street'])       $set('street', $station['street']);
+                                            if ($station['house_number']) $set('house_number', $station['house_number']);
+                                            if ($station['zip'])          $set('zip', $station['zip']);
+                                            if ($station['city'])         $set('city', $station['city']);
+
+                                            // Koordinaten (in Adresse & Karte sichtbar)
+                                            $set('lat', $station['lat']);
+                                            $set('lng', $station['lng']);
+
+                                            Notification::make()
+                                                ->title('Übernommen: ' . $station['name'])
+                                                ->body('Breitengrad: ' . $station['lat'] . "\nLängengrad: " . $station['lng'])
+                                                ->success()
+                                                ->send();
+                                        }),
+                                ])->columnSpanFull(),
+                            ])->columns(2),
+                    ]),
+
+                // ── Tab 2: Stammdaten ─────────────────────────
                 Tab::make('Stammdaten')
                     ->icon('heroicon-o-building-storefront')
                     ->schema([
@@ -145,14 +267,16 @@ class StationResource extends Resource
                             ->numeric()
                             ->step(0.00000001)
                             ->nullable()
-                            ->helperText('Automatisch aus Adresse ermittelt'),
+                            ->readOnly()
+                            ->helperText('Aus PLZ-Suche übernommen (OpenStreetMap)'),
 
                         TextInput::make('lng')
                             ->label('Längengrad')
                             ->numeric()
                             ->step(0.00000001)
                             ->nullable()
-                            ->helperText('Automatisch aus Adresse ermittelt'),
+                            ->readOnly()
+                            ->helperText('Aus PLZ-Suche übernommen (OpenStreetMap)'),
 
                         Placeholder::make('map_preview')
                             ->label('Karten-Vorschau')
@@ -320,133 +444,10 @@ class StationResource extends Resource
                             ->columnSpanFull(),
                     ]),
 
-                // ── Tab 7: System & BenzinpreisService ────────
+                // ── Tab 7: System ─────────────────────────────
                 Tab::make('System')
                     ->icon('heroicon-o-information-circle')
                     ->schema([
-
-                        // ── OSM Stationssuche ─────────────────────
-                        Section::make('Stationssuche via OpenStreetMap')
-                            ->icon('heroicon-o-magnifying-glass')
-                            ->description('Tankstellen per PLZ auf OpenStreetMap suchen — liefert direkt Koordinaten.')
-                            ->schema([
-                                TextInput::make('_search_zip')
-                                    ->label('PLZ suchen')
-                                    ->placeholder('z. B. 36093')
-                                    ->maxLength(5)
-                                    ->live()
-                                    ->dehydrated(false)
-                                    ->helperText('5-stellige PLZ eingeben, dann auf "Suchen" klicken.'),
-
-                                Actions::make([
-                                    Action::make('search_osm')
-                                        ->label('Suchen')
-                                        ->icon('heroicon-o-magnifying-glass')
-                                        ->action(function (Get $get, Set $set) {
-                                            $zip = $get('_search_zip');
-
-                                            if (! preg_match('/^\d{5}$/', $zip ?? '')) {
-                                                Notification::make()
-                                                    ->title('Ungültige PLZ')
-                                                    ->body('Bitte eine 5-stellige PLZ eingeben.')
-                                                    ->warning()
-                                                    ->send();
-                                                return;
-                                            }
-
-                                            $results = app(OverpassService::class)->searchFuelStationsByZip($zip);
-
-                                            if (empty($results)) {
-                                                Notification::make()
-                                                    ->title('Keine Tankstellen gefunden')
-                                                    ->body("OpenStreetMap hat für PLZ {$zip} keine Tankstellen-Einträge.")
-                                                    ->warning()
-                                                    ->send();
-                                                return;
-                                            }
-
-                                            // Geodaten als Notification anzeigen
-                                            $lines = collect($results)->map(fn($s) =>
-                                                ($s['name'] ?: 'Unbekannt') .
-                                                ' — ' . $s['lat'] . ', ' . $s['lng']
-                                            )->implode("\n");
-
-                                            Notification::make()
-                                                ->title(count($results) . ' Tankstellen in PLZ ' . $zip . ' gefunden')
-                                                ->body($lines)
-                                                ->info()
-                                                ->persistent()
-                                                ->send();
-
-                                            // Dropdown befüllen
-                                            $options = collect($results)
-                                                ->mapWithKeys(fn($s, $i) => [
-                                                    $i => $s['name']
-                                                        . ' — ' . $s['street'] . ' ' . $s['house_number']
-                                                        . ', ' . $s['zip'] . ' ' . $s['city']
-                                                        . ' (' . $s['lat'] . ', ' . $s['lng'] . ')',
-                                                ])
-                                                ->toArray();
-
-                                            $set('_search_results', $options);
-                                            $set('_osm_data_json', json_encode(array_values($results)));
-                                        }),
-                                ])->columnSpanFull(),
-
-                                Select::make('_selected_osm_index')
-                                    ->label('Station auswählen')
-                                    ->options(fn(Get $get) => $get('_search_results') ?? [])
-                                    ->live()
-                                    ->dehydrated(false)
-                                    ->placeholder('Zuerst PLZ suchen …')
-                                    ->columnSpanFull(),
-
-                                Actions::make([
-                                    Action::make('import_osm')
-                                        ->label('Daten übernehmen')
-                                        ->icon('heroicon-o-arrow-down-tray')
-                                        ->color('success')
-                                        ->visible(fn(Get $get) => $get('_selected_osm_index') !== null)
-                                        ->action(function (Get $get, Set $set) {
-                                            $idx  = $get('_selected_osm_index');
-                                            $json = $get('_osm_data_json');
-
-                                            if ($idx === null || ! $json) {
-                                                return;
-                                            }
-
-                                            $all     = json_decode($json, true);
-                                            $station = $all[$idx] ?? null;
-
-                                            if (! $station) {
-                                                return;
-                                            }
-
-                                            // Stammdaten setzen
-                                            if ($station['name'])         $set('name', $station['name']);
-                                            if ($station['brand'])        $set('brand', $station['brand']);
-
-                                            // Adresse setzen
-                                            if ($station['street'])       $set('street', $station['street']);
-                                            if ($station['house_number']) $set('house_number', $station['house_number']);
-                                            if ($station['zip'])          $set('zip', $station['zip']);
-                                            if ($station['city'])         $set('city', $station['city']);
-
-                                            // Koordinaten setzen (Tab 2)
-                                            $set('lat', $station['lat']);
-                                            $set('lng', $station['lng']);
-
-                                            Notification::make()
-                                                ->title('Daten übernommen')
-                                                ->body(
-                                                    $station['name'] . "\n" .
-                                                    'Koordinaten: ' . $station['lat'] . ', ' . $station['lng']
-                                                )
-                                                ->success()
-                                                ->send();
-                                        }),
-                                ])->columnSpanFull(),
-                            ])->columns(2),
 
                         // ── System-Infos ──────────────────────────
                         Section::make('System-Informationen')
