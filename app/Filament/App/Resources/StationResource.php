@@ -595,15 +595,16 @@ class StationResource extends Resource
 
     protected static function geocode(Get $get, Set $set): void
     {
-        $zip  = $get('zip') ?? '';
-        $city = $get('city') ?? '';
+        $zip    = trim($get('zip')  ?? '');
+        $city   = trim($get('city') ?? '');
+        $street = trim($get('street') ?? '');
 
         if (empty($zip) && empty($city)) {
             return;
         }
 
         $query = http_build_query([
-            'q'      => trim(($get('street') ?? '') . ', ' . $zip . ' ' . $city . ', ' . ($get('country') ?: 'DE')),
+            'q'      => trim($street . ', ' . $zip . ' ' . $city . ', ' . ($get('country') ?: 'DE')),
             'format' => 'json',
             'limit'  => 1,
         ]);
@@ -614,9 +615,32 @@ class StationResource extends Resource
                 ->get("https://nominatim.openstreetmap.org/search?{$query}");
 
             if ($response->successful() && ! empty($response->json())) {
-                $set('lat', round((float) $response->json()[0]['lat'], 8));
-                $set('lng', round((float) $response->json()[0]['lon'], 8));
+                $lat = round((float) $response->json()[0]['lat'], 8);
+                $lng = round((float) $response->json()[0]['lon'], 8);
+
+                $set('lat', $lat);
+                $set('lng', $lng);
+
+                Notification::make()
+                    ->title('Koordinaten aktualisiert')
+                    ->body(new \Illuminate\Support\HtmlString(
+                        'Breitengrad: <b>' . $lat . '</b><br>Längengrad: <b>' . $lng . '</b>'
+                    ))
+                    ->success()
+                    ->send();
+            } else {
+                Notification::make()
+                    ->title('Adresse nicht gefunden')
+                    ->body('Koordinaten konnten nicht ermittelt werden — bitte Adresse prüfen.')
+                    ->warning()
+                    ->send();
             }
-        } catch (\Throwable) {}
+        } catch (\Throwable) {
+            Notification::make()
+                ->title('Geocoding fehlgeschlagen')
+                ->body('Verbindung zu Nominatim nicht möglich.')
+                ->danger()
+                ->send();
+        }
     }
 }
