@@ -11,17 +11,20 @@
                 </div>
             </div>
         @else
-            {{-- wire:ignore verhindert dass Livewire diesen Bereich überschreibt --}}
             <div wire:ignore>
                 <div id="station-overview-map" style="height:400px;border-radius:8px;"></div>
             </div>
 
+            @script
             <script>
                 (function () {
                     var stationsData = @json($stations);
 
                     function initMap() {
-                        if (!window.L) return;
+                        if (!window.L) {
+                            setTimeout(initMap, 50);
+                            return;
+                        }
 
                         var el = document.getElementById('station-overview-map');
                         if (!el || el._mapInit) return;
@@ -54,20 +57,10 @@
                         else if (bounds.length > 1) map.fitBounds(bounds, {padding: [40, 40]});
                     }
 
-                    // Sofort versuchen (Leaflet ist bereits im <head> geladen)
                     initMap();
-
-                    // Nach Livewire-Komponenten-Updates erneut prüfen
-                    document.addEventListener('livewire:updated', initMap);
-
-                    // Nach Livewire SPA-Navigation
-                    document.addEventListener('livewire:navigated', function () {
-                        var el = document.getElementById('station-overview-map');
-                        if (el) el._mapInit = false;
-                        initMap();
-                    });
                 })();
             </script>
+            @endscript
         @endif
     </x-filament::section>
 </x-filament-widgets::widget>
