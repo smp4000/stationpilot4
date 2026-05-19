@@ -167,9 +167,27 @@ class StationResource extends Resource
                                                 return;
                                             }
 
+                                            // Brand normalisieren (benzinpreis liefert z.B. "ARAL", Select erwartet "Aral")
+                                            $brandMap = [
+                                                'aral'          => 'Aral',
+                                                'shell'         => 'Shell',
+                                                'bp'            => 'BP',
+                                                'esso'          => 'Esso',
+                                                'total'         => 'Total',
+                                                'totalenergies' => 'Total',
+                                                'jet'           => 'Jet',
+                                                'agip'          => 'Agip',
+                                                'eni'           => 'Agip',
+                                                'westfalen'     => 'Westfalen',
+                                                'hem'           => 'HEM',
+                                            ];
+                                            $brand = isset($details['brand'])
+                                                ? ($brandMap[strtolower(trim($details['brand']))] ?? null)
+                                                : null;
+
                                             // Stammdaten
-                                            if ($details['name'])  $set('name', $details['name']);
-                                            if ($details['brand']) $set('brand', $details['brand']);
+                                            if ($details['name']) $set('name', $details['name']);
+                                            if ($brand)           $set('brand', $brand);
 
                                             // Adresse
                                             if ($details['street'])       $set('street', $details['street']);
