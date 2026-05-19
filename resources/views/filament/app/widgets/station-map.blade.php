@@ -3,22 +3,22 @@
         <x-slot name="heading">Stationen-Karte</x-slot>
         @php $stations = $this->getStations(); @endphp
 
-        @if($stations->isEmpty())
-            <div class="flex items-center justify-center h-32 text-gray-400">
-                <div class="text-center">
-                    <x-heroicon-o-map-pin class="w-8 h-8 mx-auto mb-2 opacity-40"/>
-                    <p class="text-sm">Noch keine Stationen mit Koordinaten vorhanden.</p>
-                </div>
-            </div>
-        @else
-            <div
-                wire:ignore
-                x-data="stationMap({{ json_encode($stations) }})"
-                x-init="init()"
-            >
-                <div x-ref="mapEl" style="height:400px;border-radius:8px;"></div>
-            </div>
-        @endif
+        <div
+            wire:ignore
+            x-data
+            x-init="
+                const waitL = () => {
+                    if (!window.L) { setTimeout(waitL, 50); return; }
+                    const map = L.map($refs.mapEl).setView([51.1657, 10.4515], 6);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        attribution: '© OpenStreetMap'
+                    }).addTo(map);
+                };
+                waitL();
+            "
+        >
+            <div x-ref="mapEl" style="height:400px;border-radius:8px;"></div>
+        </div>
     </x-filament::section>
 </x-filament-widgets::widget>
 
