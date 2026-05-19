@@ -74,16 +74,20 @@ OVERPASS;
 
     private function searchByRadius(float $lat, float $lng, int $radius): array
     {
+        // number_format erzwingt Punkt als Dezimaltrennzeichen (locale-unabhängig)
+        $latF = number_format($lat, 8, '.', '');
+        $lngF = number_format($lng, 8, '.', '');
+
         $query = <<<OVERPASS
 [out:json][timeout:15];
 (
-  node["amenity"="fuel"](around:{$radius},{$lat},{$lng});
-  way["amenity"="fuel"](around:{$radius},{$lat},{$lng});
+  node["amenity"="fuel"](around:{$radius},{$latF},{$lngF});
+  way["amenity"="fuel"](around:{$radius},{$latF},{$lngF});
 );
 out center;
 OVERPASS;
 
-        return $this->runQuery($query, "radius:{$radius}m@{$lat},{$lng}");
+        return $this->runQuery($query, "radius:{$radius}m@{$latF},{$lngF}");
     }
 
     private function runQuery(string $query, string $context): array
