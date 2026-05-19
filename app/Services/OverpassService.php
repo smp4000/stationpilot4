@@ -45,6 +45,14 @@ class OverpassService
         return $results;
     }
 
+    /**
+     * Sucht Tankstellen direkt per Koordinaten + Radius (öffentlich).
+     */
+    public function searchNearby(float $lat, float $lng, int $radius = 400): array
+    {
+        return $this->searchByRadius($lat, $lng, $radius);
+    }
+
     // ─────────────────────────────────────────────
     // Private Methoden
     // ─────────────────────────────────────────────

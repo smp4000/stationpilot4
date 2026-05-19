@@ -306,48 +306,78 @@ class StationResource extends Resource
                                 ->icon('heroicon-o-map-pin')
                                 ->color('info')
                                 ->action(function (Get $get, Set $set) {
-                                    $zip    = trim($get('zip') ?? '');
-                                    $street = trim($get('street') ?? '');
-                                    $hno    = trim($get('house_number') ?? '');
+                                    $street  = trim($get('street') ?? '');
+                                    $hno     = trim($get('house_number') ?? '');
+                                    $zip     = trim($get('zip') ?? '');
+                                    $city    = trim($get('city') ?? '');
+                                    $country = $get('country') ?: 'DE';
 
-                                    if (! $zip) {
-                                        Notification::make()->title('PLZ fehlt')->warning()->send();
-                                        return;
-                                    }
-
-                                    $results = app(OverpassService::class)->searchFuelStationsByZip($zip);
-
-                                    if (empty($results)) {
+                                    if (! $street || ! $zip) {
                                         Notification::make()
-                                            ->title('Keine OSM-Tankstellen für PLZ ' . $zip)
+                                            ->title('Straße und PLZ werden benötigt')
                                             ->warning()->send();
                                         return;
                                     }
 
-                                    // Nächste Station anhand Straße + Hausnummer finden
-                                    $match = null;
-                                    if ($street) {
-                                        foreach ($results as $r) {
-                                            $sameStreet = str_contains(
-                                                mb_strtolower($r['street']),
-                                                mb_strtolower(mb_substr($street, 0, 6))
-                                            );
-                                            $sameHno = ! $hno || $r['house_number'] === $hno;
-                                            if ($sameStreet && $sameHno) {
-                                                $match = $r;
-                                                break;
-                                            }
+                                    // Schritt 1: Adresse via Nominatim geocodieren
+                                    $query = http_build_query([
+                                        'q'      => trim("{$street} {$hno}, {$zip} {$city}, {$country}"),
+                                        'format' => 'json',
+                                        'limit'  => 1,
+                                    ]);
+
+                                    try {
+                                        $geo = Http::withHeaders(['User-Agent' => 'Stationpilot/4.0 (contact@stationpilot.de)'])
+                                            ->timeout(5)
+                                            ->get("https://nominatim.openstreetmap.org/search?{$query}");
+
+                                        if (! $geo->successful() || empty($geo->json())) {
+                                            Notification::make()
+                                                ->title('Adresse nicht gefunden')
+                                                ->body('Nominatim konnte die Adresse nicht auflösen.')
+                                                ->warning()->send();
+                                            return;
                                         }
+
+                                        $centerLat = (float) $geo->json()[0]['lat'];
+                                        $centerLng = (float) $geo->json()[0]['lon'];
+                                    } catch (\Throwable) {
+                                        Notification::make()->title('Geocoding fehlgeschlagen')->danger()->send();
+                                        return;
                                     }
 
-                                    // Fallback: erste Station aus Ergebnissen
-                                    $station = $match ?? $results[0];
+                                    // Schritt 2: Nächste Tankstelle im 400m-Radius via Overpass
+                                    $osmService = app(OverpassService::class);
+                                    $stations   = $osmService->searchFuelStationsByZip($zip, 400);
 
+                                    // Wenn PLZ-Suche leer: direkt Radius um Adresse
+                                    if (empty($stations)) {
+                                        $stations = $osmService->searchNearby($centerLat, $centerLng, 400);
+                                    }
+
+                                    if (empty($stations)) {
+                                        // Letzter Fallback: Nominatim-Koordinaten direkt verwenden
+                                        $set('lat', round($centerLat, 8));
+                                        $set('lng', round($centerLng, 8));
+                                        Notification::make()
+                                            ->title('Keine OSM-Tankstelle gefunden — Adress-Koordinaten verwendet')
+                                            ->warning()->send();
+                                        return;
+                                    }
+
+                                    // Nächste Station zu Adress-Koordinaten
+                                    usort($stations, function ($a, $b) use ($centerLat, $centerLng) {
+                                        $da = ($a['lat'] - $centerLat) ** 2 + ($a['lng'] - $centerLng) ** 2;
+                                        $db = ($b['lat'] - $centerLat) ** 2 + ($b['lng'] - $centerLng) ** 2;
+                                        return $da <=> $db;
+                                    });
+
+                                    $station = $stations[0];
                                     $set('lat', $station['lat']);
                                     $set('lng', $station['lng']);
 
                                     Notification::make()
-                                        ->title('Koordinaten aktualisiert: ' . $station['name'])
+                                        ->title('OSM-Koordinaten: ' . $station['name'])
                                         ->body(new \Illuminate\Support\HtmlString(
                                             'Breitengrad: <b>' . $station['lat'] . '</b><br>' .
                                             'Längengrad: <b>' . $station['lng'] . '</b>'
