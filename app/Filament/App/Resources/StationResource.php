@@ -290,7 +290,7 @@ class StationResource extends Resource
                             ->step(0.00000001)
                             ->nullable()
                             ->readOnly()
-                            ->helperText('Aus PLZ-Suche übernommen (OpenStreetMap)'),
+                            ->helperText('Exakte OSM-Koordinaten (automatisch ermittelt)'),
 
                         TextInput::make('lng')
                             ->label('Längengrad')
@@ -298,7 +298,64 @@ class StationResource extends Resource
                             ->step(0.00000001)
                             ->nullable()
                             ->readOnly()
-                            ->helperText('Aus PLZ-Suche übernommen (OpenStreetMap)'),
+                            ->helperText('Exakte OSM-Koordinaten (automatisch ermittelt)'),
+
+                        Actions::make([
+                            Action::make('update_osm_coords')
+                                ->label('OSM-Koordinaten aktualisieren')
+                                ->icon('heroicon-o-map-pin')
+                                ->color('info')
+                                ->action(function (Get $get, Set $set) {
+                                    $zip    = trim($get('zip') ?? '');
+                                    $street = trim($get('street') ?? '');
+                                    $hno    = trim($get('house_number') ?? '');
+
+                                    if (! $zip) {
+                                        Notification::make()->title('PLZ fehlt')->warning()->send();
+                                        return;
+                                    }
+
+                                    $results = app(OverpassService::class)->searchFuelStationsByZip($zip);
+
+                                    if (empty($results)) {
+                                        Notification::make()
+                                            ->title('Keine OSM-Tankstellen für PLZ ' . $zip)
+                                            ->warning()->send();
+                                        return;
+                                    }
+
+                                    // Nächste Station anhand Straße + Hausnummer finden
+                                    $match = null;
+                                    if ($street) {
+                                        foreach ($results as $r) {
+                                            $sameStreet = str_contains(
+                                                mb_strtolower($r['street']),
+                                                mb_strtolower(mb_substr($street, 0, 6))
+                                            );
+                                            $sameHno = ! $hno || $r['house_number'] === $hno;
+                                            if ($sameStreet && $sameHno) {
+                                                $match = $r;
+                                                break;
+                                            }
+                                        }
+                                    }
+
+                                    // Fallback: erste Station aus Ergebnissen
+                                    $station = $match ?? $results[0];
+
+                                    $set('lat', $station['lat']);
+                                    $set('lng', $station['lng']);
+
+                                    Notification::make()
+                                        ->title('Koordinaten aktualisiert: ' . $station['name'])
+                                        ->body(new \Illuminate\Support\HtmlString(
+                                            'Breitengrad: <b>' . $station['lat'] . '</b><br>' .
+                                            'Längengrad: <b>' . $station['lng'] . '</b>'
+                                        ))
+                                        ->success()
+                                        ->send();
+                                }),
+                        ])->columnSpanFull(),
 
                         Placeholder::make('map_preview')
                             ->label('Karten-Vorschau')
