@@ -113,12 +113,14 @@ class StationResource extends Resource
 
                                             // Koordinaten-Übersicht als Notification
                                             $lines = collect($results)
-                                                ->map(fn($s) => '• ' . $s['name'] . ' — ' . $s['lat'] . ', ' . $s['lng'])
-                                                ->implode("\n");
+                                                ->map(fn($s) => '<b>' . e($s['name']) . '</b><br>'
+                                                    . 'Breitengrad: ' . $s['lat'] . '<br>'
+                                                    . 'Längengrad: ' . $s['lng'])
+                                                ->implode('<br><br>');
 
                                             Notification::make()
-                                                ->title(count($results) . ' Tankstellen in PLZ ' . $zip)
-                                                ->body($lines)
+                                                ->title(count($results) . ' Tankstellen in PLZ ' . $zip . ' gefunden')
+                                                ->body(new \Illuminate\Support\HtmlString($lines))
                                                 ->info()
                                                 ->persistent()
                                                 ->send();
@@ -182,7 +184,10 @@ class StationResource extends Resource
 
                                             Notification::make()
                                                 ->title('Übernommen: ' . $station['name'])
-                                                ->body('Breitengrad: ' . $station['lat'] . "\nLängengrad: " . $station['lng'])
+                                                ->body(new \Illuminate\Support\HtmlString(
+                                                    'Breitengrad: <b>' . $station['lat'] . '</b><br>' .
+                                                    'Längengrad: <b>' . $station['lng'] . '</b>'
+                                                ))
                                                 ->success()
                                                 ->send();
                                         }),
