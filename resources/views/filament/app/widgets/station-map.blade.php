@@ -15,10 +15,15 @@
             <script>
                 (function () {
                     var stationsData = @json($stations);
+                    var attempts = 0;
 
                     function initMap() {
                         var el = document.getElementById('station-overview-map');
                         if (!el || el._mapInit) return;
+                        if (!window.L) {
+                            if (++attempts < 100) setTimeout(initMap, 50);
+                            return;
+                        }
                         el._mapInit = true;
 
                         var map = L.map(el);
@@ -48,36 +53,13 @@
                         else if (bounds.length > 1) map.fitBounds(bounds, {padding: [40, 40]});
                     }
 
-                    function loadLeaflet() {
-                        if (window.L) { initMap(); return; }
-                        if (window._leafletLoading) { setTimeout(loadLeaflet, 50); return; }
-
-                        window._leafletLoading = true;
-
-                        // CSS
-                        if (!document.querySelector('link[href*="leaflet"]')) {
-                            var link = document.createElement('link');
-                            link.rel = 'stylesheet';
-                            link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-                            document.head.appendChild(link);
-                        }
-
-                        // JS
-                        var script = document.createElement('script');
-                        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-                        script.onload = function () {
-                            window._leafletLoading = false;
-                            initMap();
-                        };
-                        document.head.appendChild(script);
-                    }
-
-                    loadLeaflet();
+                    initMap();
 
                     document.addEventListener('livewire:navigated', function () {
+                        attempts = 0;
                         var el = document.getElementById('station-overview-map');
                         if (el) el._mapInit = false;
-                        loadLeaflet();
+                        initMap();
                     });
                 })();
             </script>

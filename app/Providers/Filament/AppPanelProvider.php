@@ -3,6 +3,9 @@ namespace App\Providers\Filament;
 use App\Http\Middleware\CheckTenantStatus;
 use App\Http\Middleware\EnsureTenantContext;
 use App\Http\Middleware\SetPartnerPermissionsTeam;
+use Filament\Support\Assets\Css;
+use Filament\Support\Assets\Js;
+use Filament\Support\Facades\FilamentAsset;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -21,6 +24,16 @@ use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 class AppPanelProvider extends PanelProvider
 {
+    public function register(): void
+    {
+        parent::register();
+
+        FilamentAsset::register([
+            Css::make('leaflet-css', 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'),
+            Js::make('leaflet-js', 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'),
+        ]);
+    }
+
     public function panel(Panel $panel): Panel
     {
         return $panel
