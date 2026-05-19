@@ -4,6 +4,9 @@ use App\Http\Middleware\CheckTenantStatus;
 use App\Http\Middleware\EnsureTenantContext;
 use App\Http\Middleware\SetPartnerPermissionsTeam;
 use Filament\Http\Middleware\Authenticate;
+use Filament\Support\Facades\FilamentView;
+use Filament\View\PanelsRenderHook;
+use Illuminate\Support\HtmlString;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
@@ -21,6 +24,17 @@ use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 class AppPanelProvider extends PanelProvider
 {
+    public function boot(): void
+    {
+        FilamentView::registerRenderHook(
+            PanelsRenderHook::HEAD_END,
+            fn (): HtmlString => new HtmlString(
+                '<link rel="stylesheet" href="' . asset('vendor/leaflet/leaflet.css') . '">' .
+                '<script src="' . asset('vendor/leaflet/leaflet.js') . '"></script>'
+            )
+        );
+    }
+
     public function panel(Panel $panel): Panel
     {
         return $panel
