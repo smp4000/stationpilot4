@@ -346,14 +346,9 @@ class StationResource extends Resource
                                         return;
                                     }
 
-                                    // Schritt 2: Nächste Tankstelle im 400m-Radius via Overpass
+                                    // Schritt 2: Nächste Tankstelle im 1000m-Radius um Adress-Koordinaten
                                     $osmService = app(OverpassService::class);
-                                    $stations   = $osmService->searchFuelStationsByZip($zip, 400);
-
-                                    // Wenn PLZ-Suche leer: direkt Radius um Adresse
-                                    if (empty($stations)) {
-                                        $stations = $osmService->searchNearby($centerLat, $centerLng, 400);
-                                    }
+                                    $stations   = $osmService->searchNearby($centerLat, $centerLng, 1000);
 
                                     if (empty($stations)) {
                                         // Letzter Fallback: Nominatim-Koordinaten direkt verwenden
