@@ -6,6 +6,7 @@ use App\Filament\App\Resources\StationResource\Pages;
 use App\Jobs\EnrichStationJob;
 use App\Models\Station;
 use App\Services\BenzinpreisService;
+use App\Services\OverpassService;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
@@ -74,18 +75,18 @@ class StationResource extends Resource
                     ->schema([
                         Section::make('Tankstelle per PLZ suchen')
                             ->icon('heroicon-o-map-pin')
-                            ->description('PLZ eingeben → Umkreissuche auf benzinpreis-aktuell.de → Station auswählen → Koordinaten & Daten übernehmen.')
+                            ->description('PLZ eingeben → Suche via OpenStreetMap → exakte Koordinaten direkt vom OSM-Gebäude übernehmen.')
                             ->schema([
                                 TextInput::make('_search_zip')
                                     ->label('PLZ')
-                                    ->placeholder('z. B. 36039')
+                                    ->placeholder('z. B. 36043')
                                     ->maxLength(5)
                                     ->live()
                                     ->dehydrated(false)
-                                    ->helperText('5-stellige PLZ eingeben — Suche startet automatisch'),
+                                    ->helperText('5-stellige PLZ eingeben, dann auf "Suchen" klicken.'),
 
                                 Actions::make([
-                                    Action::make('search_bp')
+                                    Action::make('search_osm')
                                         ->label('Suchen')
                                         ->icon('heroicon-o-magnifying-glass')
                                         ->color('primary')
@@ -101,33 +102,31 @@ class StationResource extends Resource
                                                 return;
                                             }
 
-                                            // Umkreis aus Settings (Standard 20 km — später konfigurierbar)
-                                            $radius  = 20;
-                                            $results = app(BenzinpreisService::class)->searchByPlz($zip, $radius);
+                                            $results = app(OverpassService::class)->searchFuelStationsByZip($zip);
 
                                             if (empty($results)) {
                                                 Notification::make()
                                                     ->title('Keine Tankstellen gefunden')
-                                                    ->body("Für PLZ {$zip} wurden im {$radius}-km-Umkreis keine Tankstellen gefunden.")
+                                                    ->body("Für PLZ {$zip} wurden keine Tankstellen in OpenStreetMap gefunden.")
                                                     ->warning()
                                                     ->send();
                                                 return;
                                             }
 
-                                            // Dropdown-Optionen: Schlüssel = "hash:slug"
                                             $options = collect($results)
-                                                ->mapWithKeys(fn($s) => [
-                                                    $s['hash'] . ':' . $s['slug'] => $s['name']
-                                                        . ' · ' . $s['street']
-                                                        . ', ' . $s['city'],
+                                                ->mapWithKeys(fn ($s, $i) => [
+                                                    $i => $s['name']
+                                                        . ' · ' . $s['street'] . ' ' . $s['house_number']
+                                                        . ', ' . $s['zip'] . ' ' . $s['city'],
                                                 ])
                                                 ->toArray();
 
                                             $set('_search_results', $options);
+                                            $set('_osm_data_json', json_encode(array_values($results)));
 
                                             Notification::make()
-                                                ->title(count($results) . ' Tankstellen in ' . $zip . ' (Umkreis ' . $radius . ' km)')
-                                                ->body(count($results) . ' Ergebnisse geladen — bitte Tankstelle auswählen.')
+                                                ->title(count($results) . ' Tankstellen in PLZ ' . $zip . ' gefunden')
+                                                ->body('Exakte OSM-Koordinaten verfügbar — bitte Station auswählen.')
                                                 ->info()
                                                 ->send();
                                         }),
@@ -135,7 +134,7 @@ class StationResource extends Resource
 
                                 Select::make('_selected_station')
                                     ->label('Gefundene Tankstellen')
-                                    ->options(fn(Get $get) => $get('_search_results') ?? [])
+                                    ->options(fn (Get $get) => $get('_search_results') ?? [])
                                     ->live()
                                     ->searchable()
                                     ->dehydrated(false)
@@ -143,31 +142,27 @@ class StationResource extends Resource
                                     ->columnSpanFull(),
 
                                 Actions::make([
-                                    Action::make('import_bp')
+                                    Action::make('import_osm')
                                         ->label('Koordinaten & Daten übernehmen')
                                         ->icon('heroicon-o-arrow-down-tray')
                                         ->color('success')
-                                        ->visible(fn(Get $get) => $get('_selected_station') !== null)
+                                        ->visible(fn (Get $get) => $get('_selected_station') !== null)
                                         ->action(function (Get $get, Set $set) {
-                                            $key = $get('_selected_station');
-                                            if (! $key || ! str_contains($key, ':')) {
+                                            $idx  = $get('_selected_station');
+                                            $json = $get('_osm_data_json');
+
+                                            if ($idx === null || ! $json) {
                                                 return;
                                             }
 
-                                            [$hash, $slug] = explode(':', $key, 2);
-
-                                            $details = app(BenzinpreisService::class)->fetchStationDetails($hash, $slug);
+                                            $all     = json_decode($json, true);
+                                            $details = $all[$idx] ?? null;
 
                                             if (! $details) {
-                                                Notification::make()
-                                                    ->title('Fehler beim Laden der Station')
-                                                    ->body('Die Detailseite konnte nicht geladen werden.')
-                                                    ->danger()
-                                                    ->send();
                                                 return;
                                             }
 
-                                            // Brand normalisieren (benzinpreis liefert z.B. "ARAL", Select erwartet "Aral")
+                                            // Brand normalisieren
                                             $brandMap = [
                                                 'aral'          => 'Aral',
                                                 'shell'         => 'Shell',
@@ -180,6 +175,8 @@ class StationResource extends Resource
                                                 'eni'           => 'Agip',
                                                 'westfalen'     => 'Westfalen',
                                                 'hem'           => 'HEM',
+                                                'oili'          => 'Freie Station',
+                                                'oil!'          => 'Freie Station',
                                             ];
                                             $brand = isset($details['brand'])
                                                 ? ($brandMap[strtolower(trim($details['brand']))] ?? null)
