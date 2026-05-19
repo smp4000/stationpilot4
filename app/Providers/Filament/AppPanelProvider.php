@@ -4,6 +4,7 @@ use App\Http\Middleware\CheckTenantStatus;
 use App\Http\Middleware\EnsureTenantContext;
 use App\Http\Middleware\SetPartnerPermissionsTeam;
 use Filament\Http\Middleware\Authenticate;
+use Filament\Support\Facades\FilamentView;
 use Filament\View\PanelsRenderHook;
 use Illuminate\Support\HtmlString;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -23,6 +24,19 @@ use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 class AppPanelProvider extends PanelProvider
 {
+    public function boot(): void
+    {
+        parent::boot();
+
+        FilamentView::registerRenderHook(
+            PanelsRenderHook::HEAD_END,
+            fn (): HtmlString => new HtmlString(
+                '<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">' .
+                '<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>'
+            )
+        );
+    }
+
     public function panel(Panel $panel): Panel
     {
         return $panel
@@ -79,13 +93,6 @@ class AppPanelProvider extends PanelProvider
                 DisableBladeIconComponents::class,
                 DispatchServingFilamentEvent::class,
             ])
-            ->renderHook(
-                PanelsRenderHook::HEAD_END,
-                fn (): HtmlString => new HtmlString(
-                    '<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">' .
-                    '<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>'
-                )
-            )
             ->authMiddleware([
                 Authenticate::class,
                 SetPartnerPermissionsTeam::class,  // P03: setzt Team-ID + tenant_id in Session
