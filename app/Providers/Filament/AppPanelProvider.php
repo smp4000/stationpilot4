@@ -26,8 +26,6 @@ class AppPanelProvider extends PanelProvider
 {
     public function boot(): void
     {
-        parent::boot();
-
         FilamentView::registerRenderHook(
             PanelsRenderHook::HEAD_END,
             fn (): HtmlString => new HtmlString(
