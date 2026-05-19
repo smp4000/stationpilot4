@@ -6,6 +6,7 @@ use App\Filament\App\Resources\StationResource\Pages;
 use App\Jobs\EnrichStationJob;
 use App\Models\Station;
 use App\Services\BenzinpreisService;
+use App\Services\OverpassService;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
@@ -324,10 +325,10 @@ class StationResource extends Resource
                     ->icon('heroicon-o-information-circle')
                     ->schema([
 
-                        // ── PLZ-Suche ─────────────────────────────
-                        Section::make('BenzinpreisService — Stationssuche')
+                        // ── OSM Stationssuche ─────────────────────
+                        Section::make('Stationssuche via OpenStreetMap')
                             ->icon('heroicon-o-magnifying-glass')
-                            ->description('Tankstelle auf benzinpreis.de suchen und verknüpfen.')
+                            ->description('Tankstellen per PLZ auf OpenStreetMap suchen — liefert direkt Koordinaten.')
                             ->schema([
                                 TextInput::make('_search_zip')
                                     ->label('PLZ suchen')
@@ -338,7 +339,7 @@ class StationResource extends Resource
                                     ->helperText('5-stellige PLZ eingeben, dann auf "Suchen" klicken.'),
 
                                 Actions::make([
-                                    Action::make('search_benzinpreis')
+                                    Action::make('search_osm')
                                         ->label('Suchen')
                                         ->icon('heroicon-o-magnifying-glass')
                                         ->action(function (Get $get, Set $set) {
@@ -353,33 +354,47 @@ class StationResource extends Resource
                                                 return;
                                             }
 
-                                            $results = app(BenzinpreisService::class)->searchByZip($zip);
+                                            $results = app(OverpassService::class)->searchFuelStationsByZip($zip);
 
                                             if (empty($results)) {
                                                 Notification::make()
-                                                    ->title('Keine Stationen gefunden')
-                                                    ->body("Für PLZ {$zip} wurden keine Einträge gefunden.")
+                                                    ->title('Keine Tankstellen gefunden')
+                                                    ->body("OpenStreetMap hat für PLZ {$zip} keine Tankstellen-Einträge.")
                                                     ->warning()
                                                     ->send();
                                                 return;
                                             }
 
+                                            // Geodaten als Notification anzeigen
+                                            $lines = collect($results)->map(fn($s) =>
+                                                ($s['name'] ?: 'Unbekannt') .
+                                                ' — ' . $s['lat'] . ', ' . $s['lng']
+                                            )->implode("\n");
+
+                                            Notification::make()
+                                                ->title(count($results) . ' Tankstellen in PLZ ' . $zip . ' gefunden')
+                                                ->body($lines)
+                                                ->info()
+                                                ->persistent()
+                                                ->send();
+
+                                            // Dropdown befüllen
                                             $options = collect($results)
-                                                ->mapWithKeys(fn($s) => [$s['slug'] => $s['name'] . ' — ' . $s['street'] . ', ' . $s['city']])
+                                                ->mapWithKeys(fn($s, $i) => [
+                                                    $i => $s['name']
+                                                        . ' — ' . $s['street'] . ' ' . $s['house_number']
+                                                        . ', ' . $s['zip'] . ' ' . $s['city']
+                                                        . ' (' . $s['lat'] . ', ' . $s['lng'] . ')',
+                                                ])
                                                 ->toArray();
 
                                             $set('_search_results', $options);
-                                            $set('_search_results_json', json_encode($results));
-
-                                            Notification::make()
-                                                ->title(count($results) . ' Stationen gefunden')
-                                                ->success()
-                                                ->send();
+                                            $set('_osm_data_json', json_encode(array_values($results)));
                                         }),
                                 ])->columnSpanFull(),
 
-                                Select::make('_search_results')
-                                    ->label('Gefundene Stationen')
+                                Select::make('_selected_osm_index')
+                                    ->label('Station auswählen')
                                     ->options(fn(Get $get) => $get('_search_results') ?? [])
                                     ->live()
                                     ->dehydrated(false)
@@ -387,29 +402,46 @@ class StationResource extends Resource
                                     ->columnSpanFull(),
 
                                 Actions::make([
-                                    Action::make('import_slug')
-                                        ->label('Slug übernehmen & Daten importieren')
+                                    Action::make('import_osm')
+                                        ->label('Daten übernehmen')
                                         ->icon('heroicon-o-arrow-down-tray')
                                         ->color('success')
-                                        ->requiresConfirmation()
-                                        ->modalHeading('Slug und Daten importieren?')
-                                        ->modalDescription('Der Slug wird gespeichert und ein Hintergrundjob startet den Daten-Import.')
-                                        ->visible(fn(Get $get) => ! empty($get('_search_results')))
-                                        ->action(function (Get $get, Set $set, $record) {
-                                            $slug = $get('_search_results');
+                                        ->visible(fn(Get $get) => $get('_selected_osm_index') !== null)
+                                        ->action(function (Get $get, Set $set) {
+                                            $idx  = $get('_selected_osm_index');
+                                            $json = $get('_osm_data_json');
 
-                                            if (! $slug || ! $record) {
+                                            if ($idx === null || ! $json) {
                                                 return;
                                             }
 
-                                            $record->updateQuietly(['benzinpreis_slug' => $slug]);
-                                            $set('benzinpreis_slug', $slug);
+                                            $all     = json_decode($json, true);
+                                            $station = $all[$idx] ?? null;
 
-                                            EnrichStationJob::dispatch($record);
+                                            if (! $station) {
+                                                return;
+                                            }
+
+                                            // Stammdaten setzen
+                                            if ($station['name'])         $set('name', $station['name']);
+                                            if ($station['brand'])        $set('brand', $station['brand']);
+
+                                            // Adresse setzen
+                                            if ($station['street'])       $set('street', $station['street']);
+                                            if ($station['house_number']) $set('house_number', $station['house_number']);
+                                            if ($station['zip'])          $set('zip', $station['zip']);
+                                            if ($station['city'])         $set('city', $station['city']);
+
+                                            // Koordinaten setzen (Tab 2)
+                                            $set('lat', $station['lat']);
+                                            $set('lng', $station['lng']);
 
                                             Notification::make()
-                                                ->title('Import gestartet')
-                                                ->body('Slug gespeichert. Daten werden im Hintergrund importiert.')
+                                                ->title('Daten übernommen')
+                                                ->body(
+                                                    $station['name'] . "\n" .
+                                                    'Koordinaten: ' . $station['lat'] . ', ' . $station['lng']
+                                                )
                                                 ->success()
                                                 ->send();
                                         }),
