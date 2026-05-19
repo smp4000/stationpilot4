@@ -12,24 +12,13 @@
             </div>
         @else
             <div id="station-overview-map" style="height:400px;border-radius:8px;"></div>
-
-            @once
-                <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
-                <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-            @endonce
-
             <script>
                 (function () {
                     var stationsData = @json($stations);
-                    var attempts = 0;
 
-                    function tryInit() {
+                    function initMap() {
                         var el = document.getElementById('station-overview-map');
-                        if (!el || !window.L) {
-                            if (++attempts < 100) setTimeout(tryInit, 50);
-                            return;
-                        }
-                        if (el._mapInit) return;
+                        if (!el || el._mapInit) return;
                         el._mapInit = true;
 
                         var map = L.map(el);
@@ -59,13 +48,36 @@
                         else if (bounds.length > 1) map.fitBounds(bounds, {padding: [40, 40]});
                     }
 
-                    tryInit();
+                    function loadLeaflet() {
+                        if (window.L) { initMap(); return; }
+                        if (window._leafletLoading) { setTimeout(loadLeaflet, 50); return; }
+
+                        window._leafletLoading = true;
+
+                        // CSS
+                        if (!document.querySelector('link[href*="leaflet"]')) {
+                            var link = document.createElement('link');
+                            link.rel = 'stylesheet';
+                            link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+                            document.head.appendChild(link);
+                        }
+
+                        // JS
+                        var script = document.createElement('script');
+                        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+                        script.onload = function () {
+                            window._leafletLoading = false;
+                            initMap();
+                        };
+                        document.head.appendChild(script);
+                    }
+
+                    loadLeaflet();
 
                     document.addEventListener('livewire:navigated', function () {
-                        attempts = 0;
                         var el = document.getElementById('station-overview-map');
                         if (el) el._mapInit = false;
-                        tryInit();
+                        loadLeaflet();
                     });
                 })();
             </script>
