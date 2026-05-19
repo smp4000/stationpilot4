@@ -67,9 +67,10 @@ class StationResource extends Resource
         return $schema->components([
             Tabs::make('Station')->tabs([
 
-                // ── Tab 1: Stationssuche (benzinpreis-aktuell.de) ─────
+                // ── Tab 1: Stationssuche (nur beim Erstellen) ─────
                 Tab::make('Stationssuche')
                     ->icon('heroicon-o-magnifying-glass')
+                    ->hidden(fn ($record) => $record !== null)
                     ->schema([
                         Section::make('Tankstelle per PLZ suchen')
                             ->icon('heroicon-o-map-pin')
