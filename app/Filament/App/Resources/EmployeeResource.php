@@ -3,9 +3,13 @@
 namespace App\Filament\App\Resources;
 
 use App\Filament\App\Resources\EmployeeResource\Pages;
+use App\Mail\EmployeeInvitationMail;
 use App\Models\Employee;
+use App\Models\EmployeeAccessLog;
 use App\Models\Station;
 use Filament\Actions\Action;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
@@ -586,19 +590,39 @@ class EmployeeResource extends Resource
             ])
             ->headerActions([
                 CreateAction::make(),
-                Action::make('einladen')
-                    ->label('Einladen')
-                    ->icon('heroicon-o-envelope')
-                    ->color('info')
-                    ->action(function (): void {
-                        // Placeholder: Einladungs-Logik hier implementieren
-                    }),
             ])
             ->recordAction('view')
             ->recordUrl(null)
             ->actions([
                 ViewAction::make(),
                 EditAction::make(),
+                Action::make('einladen')
+                    ->label('Einladen')
+                    ->icon('heroicon-o-envelope')
+                    ->color('info')
+                    ->visible(fn (Employee $record): bool => $record->email !== null && $record->status !== 'aktiv')
+                    ->action(function (Employee $record): void {
+                        $record->invitation_token      = Str::random(64);
+                        $record->invited_at            = now();
+                        $record->invitation_expires_at = now()->addDays(7);
+                        $record->status                = 'eingeladen';
+                        $record->save();
+
+                        Mail::to($record->email)->send(new EmployeeInvitationMail($record));
+
+                        EmployeeAccessLog::record(
+                            $record->id,
+                            EmployeeAccessLog::ACTION_INVITE,
+                            'employee',
+                            $record->id
+                        );
+
+                        \Filament\Notifications\Notification::make()
+                            ->title('Einladung versendet')
+                            ->body('Einladung wurde an ' . $record->email . ' versendet.')
+                            ->success()
+                            ->send();
+                    }),
                 DeleteAction::make()
                     ->hidden(fn (Employee $record): bool => (bool) $record->deleted_at),
                 RestoreAction::make()
