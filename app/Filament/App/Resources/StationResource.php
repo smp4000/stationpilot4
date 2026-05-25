@@ -1322,9 +1322,9 @@ class StationResource extends Resource
             ])
             ->actions([
                 ViewAction::make(),
-                EditAction::make()->visible(fn() => auth()->user()?->can('partner.stations.edit')),
-                DeleteAction::make()->visible(fn() => auth()->user()?->can('partner.stations.delete')),
-                RestoreAction::make()->visible(fn() => auth()->user()?->can('partner.stations.delete')),
+                EditAction::make()->visible(fn ($record) => ! $record->trashed() && auth()->user()?->can('partner.stations.edit')),
+                DeleteAction::make()->visible(fn ($record) => ! $record->trashed() && auth()->user()?->can('partner.stations.delete')),
+                RestoreAction::make()->visible(fn ($record) => $record->trashed() && auth()->user()?->can('partner.stations.delete')),
             ])
             ->defaultSort('name');
     }
