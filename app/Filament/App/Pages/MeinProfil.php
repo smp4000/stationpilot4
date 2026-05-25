@@ -3,10 +3,14 @@
 namespace App\Filament\App\Pages;
 
 use App\Models\Employee;
+use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Filament\Schemas\Components\Actions;
+use Filament\Schemas\Components\EmbeddedSchema;
+use Filament\Schemas\Components\Form;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\Hash;
@@ -38,8 +42,8 @@ class MeinProfil extends Page
 
     // ─── State ──────────────────────────────────────────────────────────────
 
-    public ?array $profileData   = [];
-    public ?array $passwordData  = [];
+    public ?array $profileData  = [];
+    public ?array $passwordData = [];
 
     public function mount(): void
     {
@@ -62,7 +66,17 @@ class MeinProfil extends Page
         ];
     }
 
-    // ─── Schemas (Filament 5) ────────────────────────────────────────────────
+    // ─── Page-Inhalt (Filament 5) ────────────────────────────────────────────
+
+    public function content(Schema $schema): Schema
+    {
+        return $schema->components([
+            EmbeddedSchema::make('profileForm'),
+            EmbeddedSchema::make('passwordForm'),
+        ]);
+    }
+
+    // ─── Schemas ────────────────────────────────────────────────────────────
 
     public function profileForm(Schema $schema): Schema
     {
@@ -122,6 +136,14 @@ class MeinProfil extends Page
                             ->label('Ort')
                             ->maxLength(100),
                     ]),
+
+                Actions::make([
+                    Action::make('saveProfile')
+                        ->label('Profil speichern')
+                        ->icon('heroicon-o-check')
+                        ->color('primary')
+                        ->action('saveProfile'),
+                ]),
             ]);
     }
 
@@ -152,10 +174,18 @@ class MeinProfil extends Page
                             ->revealable()
                             ->required(),
                     ]),
+
+                Actions::make([
+                    Action::make('changePassword')
+                        ->label('Passwort ändern')
+                        ->icon('heroicon-o-lock-closed')
+                        ->color('warning')
+                        ->action('changePassword'),
+                ]),
             ]);
     }
 
-    // ─── Actions ────────────────────────────────────────────────────────────
+    // ─── Action-Handler ─────────────────────────────────────────────────────
 
     public function saveProfile(): void
     {
@@ -179,10 +209,7 @@ class MeinProfil extends Page
             'city'         => $data['city']          ?? null,
         ]);
 
-        Notification::make()
-            ->title('Profil gespeichert.')
-            ->success()
-            ->send();
+        Notification::make()->title('Profil gespeichert.')->success()->send();
     }
 
     public function changePassword(): void
@@ -191,10 +218,7 @@ class MeinProfil extends Page
         $user = auth()->user();
 
         if (! Hash::check($data['current_password'] ?? '', $user->password)) {
-            Notification::make()
-                ->title('Das aktuelle Passwort ist falsch.')
-                ->danger()
-                ->send();
+            Notification::make()->title('Das aktuelle Passwort ist falsch.')->danger()->send();
             return;
         }
 
@@ -205,10 +229,7 @@ class MeinProfil extends Page
 
         $this->passwordData = [];
 
-        Notification::make()
-            ->title('Passwort erfolgreich geändert.')
-            ->success()
-            ->send();
+        Notification::make()->title('Passwort erfolgreich geändert.')->success()->send();
     }
 
     // ─── Hilfsmethoden ──────────────────────────────────────────────────────
