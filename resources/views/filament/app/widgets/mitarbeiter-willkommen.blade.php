@@ -1,3 +1,4 @@
+<x-filament-widgets::widget>
 @php
     $employee = $this->getEmployee();
     $user     = auth()->user();
@@ -9,21 +10,20 @@
     };
 @endphp
 
-<div class="rounded-2xl overflow-hidden shadow-sm border border-gray-200 dark:border-gray-700">
+<x-filament::section>
 
     {{-- Header --}}
-    <div class="bg-gradient-to-r from-primary-700 to-primary-500 px-6 py-8">
-        <div class="flex items-center gap-4">
-            <div class="flex-shrink-0 w-14 h-14 rounded-full bg-white/20 flex items-center justify-center text-2xl font-bold text-white">
+    <div style="background:linear-gradient(135deg,#1e3a8a 0%,#2563eb 100%);border-radius:12px;padding:24px 28px;margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:16px;">
+            <div style="width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#fff;flex-shrink:0;">
                 {{ strtoupper(substr($user->first_name ?? '?', 0, 1)) }}{{ strtoupper(substr($user->last_name ?? '', 0, 1)) }}
             </div>
             <div>
-                <p class="text-primary-200 text-sm">{{ $greeting }},</p>
-                <h2 class="text-white text-xl font-bold">{{ $user->first_name }} {{ $user->last_name }}</h2>
+                <p style="color:rgba(255,255,255,0.7);font-size:13px;margin:0 0 2px;">{{ $greeting }},</p>
+                <h2 style="color:#fff;font-size:20px;font-weight:700;margin:0 0 2px;">{{ $user->first_name }} {{ $user->last_name }}</h2>
                 @if ($employee?->station)
-                    <p class="text-primary-200 text-sm mt-0.5 flex items-center gap-1">
-                        <x-heroicon-s-map-pin class="w-3.5 h-3.5" />
-                        {{ $employee->station->name }}
+                    <p style="color:rgba(255,255,255,0.7);font-size:13px;margin:0;">
+                        📍 {{ $employee->station->name }}
                     </p>
                 @endif
             </div>
@@ -31,18 +31,16 @@
     </div>
 
     {{-- Info-Kacheln --}}
-    <div class="bg-white dark:bg-gray-900 px-6 py-5 grid grid-cols-2 sm:grid-cols-4 gap-4">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;">
 
-        <div class="text-center">
-            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Position</p>
-            <p class="mt-1 text-sm font-semibold text-gray-800 dark:text-gray-200">
-                {{ $employee?->position ?: '—' }}
-            </p>
+        <div style="background:#f8fafc;border-radius:8px;padding:12px 16px;text-align:center;border:1px solid #e2e8f0;">
+            <p style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin:0 0 4px;">Position</p>
+            <p style="font-size:14px;font-weight:600;color:#1e293b;margin:0;">{{ $employee?->position ?: '—' }}</p>
         </div>
 
-        <div class="text-center">
-            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Beschäftigungsart</p>
-            <p class="mt-1 text-sm font-semibold text-gray-800 dark:text-gray-200">
+        <div style="background:#f8fafc;border-radius:8px;padding:12px 16px;text-align:center;border:1px solid #e2e8f0;">
+            <p style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin:0 0 4px;">Beschäftigungsart</p>
+            <p style="font-size:14px;font-weight:600;color:#1e293b;margin:0;">
                 {{ match($employee?->employment_type ?? '') {
                     'vollzeit'   => 'Vollzeit',
                     'teilzeit'   => 'Teilzeit',
@@ -54,33 +52,33 @@
             </p>
         </div>
 
-        <div class="text-center">
-            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Eintrittsdatum</p>
-            <p class="mt-1 text-sm font-semibold text-gray-800 dark:text-gray-200">
+        <div style="background:#f8fafc;border-radius:8px;padding:12px 16px;text-align:center;border:1px solid #e2e8f0;">
+            <p style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin:0 0 4px;">Eintrittsdatum</p>
+            <p style="font-size:14px;font-weight:600;color:#1e293b;margin:0;">
                 {{ $employee?->employment_start?->format('d.m.Y') ?? '—' }}
             </p>
         </div>
 
-        <div class="text-center">
-            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Personalnummer</p>
-            <p class="mt-1 text-sm font-semibold text-gray-800 dark:text-gray-200 font-mono">
+        <div style="background:#f8fafc;border-radius:8px;padding:12px 16px;text-align:center;border:1px solid #e2e8f0;">
+            <p style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin:0 0 4px;">Personalnummer</p>
+            <p style="font-size:14px;font-weight:600;color:#1e293b;margin:0;font-family:monospace;">
                 {{ $employee?->personnel_number ?: '—' }}
             </p>
         </div>
 
     </div>
 
-    {{-- Passwort-Hinweis bei must_change_password --}}
-    @if ($user->must_change_password ?? false)
-        <div class="bg-amber-50 dark:bg-amber-900/20 border-t border-amber-200 dark:border-amber-800 px-6 py-3 flex items-center gap-3">
-            <x-heroicon-s-exclamation-triangle class="w-5 h-5 text-amber-500 flex-shrink-0" />
-            <p class="text-sm text-amber-800 dark:text-amber-300">
+    {{-- Passwort-Hinweis --}}
+    @if ($user->must_change_password)
+        <div style="margin-top:16px;background:#fff7ed;border-left:4px solid #f97316;border-radius:0 8px 8px 0;padding:12px 16px;display:flex;align-items:center;gap:10px;">
+            <span style="font-size:18px;">⚠️</span>
+            <p style="margin:0;font-size:13px;color:#9a3412;">
                 Bitte ändern Sie Ihr Passwort unter
-                <a href="{{ \App\Filament\App\Pages\MeinProfil::getUrl() }}" class="font-semibold underline hover:no-underline">
-                    Mein Profil
-                </a>.
+                <a href="{{ \App\Filament\App\Pages\MeinProfil::getUrl() }}" style="font-weight:600;color:#c2410c;">Mein Profil</a>.
             </p>
         </div>
     @endif
 
-</div>
+</x-filament::section>
+
+</x-filament-widgets::widget>
