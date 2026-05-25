@@ -28,6 +28,9 @@ class EditEmployee extends EditRecord
             unset($data['mde_pin']);
         }
 
+        // user_id darf NUR über die app_zugang-Actions geändert werden
+        unset($data['user_id']);
+
         return $data;
     }
 

@@ -8,7 +8,6 @@
             $stations       = $employee->stations()->get();
             $primaryStation = $employee->station;
         @endphp
-
         @if ($primaryStation || $stations->isNotEmpty())
             <x-filament::section>
                 <x-slot name="heading">Meine Station(en)</x-slot>
@@ -28,8 +27,8 @@
         @endif
     @endif
 
-    {{-- Profil- und Passwort-Formulare --}}
-    {{ $this->content }}
+    {{-- Formulare --}}
+    {{ $this->form }}
 
     <x-filament-actions::modals />
 

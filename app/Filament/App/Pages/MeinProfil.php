@@ -9,8 +9,6 @@ use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Schemas\Components\Actions;
-use Filament\Schemas\Components\EmbeddedSchema;
-use Filament\Schemas\Components\Form;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\Hash;
@@ -40,10 +38,7 @@ class MeinProfil extends Page
         return auth()->user()?->isEmployee() ?? false;
     }
 
-    // ─── State ──────────────────────────────────────────────────────────────
-
-    public ?array $profileData  = [];
-    public ?array $passwordData = [];
+    // ─── Mount ──────────────────────────────────────────────────────────────
 
     public function mount(): void
     {
@@ -52,7 +47,8 @@ class MeinProfil extends Page
             return;
         }
 
-        $this->profileForm->fill([
+        // Genau wie Filament's eigener EditProfile: $this->form->fill($data)
+        $this->form->fill([
             'first_name'   => $employee->first_name,
             'last_name'    => $employee->last_name,
             'email'        => $employee->email,
@@ -66,130 +62,112 @@ class MeinProfil extends Page
         ]);
     }
 
-    // ─── Page-Inhalt (Filament 5) ────────────────────────────────────────────
+    // ─── Haupt-Schema ────────────────────────────────────────────────────────
 
-    public function content(Schema $schema): Schema
+    public function form(Schema $schema): Schema
     {
         return $schema->components([
-            EmbeddedSchema::make('profileForm'),
-            EmbeddedSchema::make('passwordForm'),
+
+            Section::make('Persönliche Daten')
+                ->columns(2)
+                ->schema([
+                    TextInput::make('first_name')
+                        ->label('Vorname')
+                        ->required()
+                        ->maxLength(100),
+
+                    TextInput::make('last_name')
+                        ->label('Nachname')
+                        ->required()
+                        ->maxLength(100),
+
+                    TextInput::make('email')
+                        ->label('E-Mail')
+                        ->email()
+                        ->required()
+                        ->maxLength(255),
+
+                    DatePicker::make('birth_date')
+                        ->label('Geburtsdatum')
+                        ->displayFormat('d.m.Y'),
+
+                    TextInput::make('phone')
+                        ->label('Telefon')
+                        ->tel()
+                        ->maxLength(50),
+
+                    TextInput::make('phone_mobile')
+                        ->label('Mobil')
+                        ->tel()
+                        ->maxLength(50),
+                ]),
+
+            Section::make('Adresse')
+                ->columns(2)
+                ->schema([
+                    TextInput::make('address')
+                        ->label('Straße')
+                        ->maxLength(200),
+
+                    TextInput::make('house_number')
+                        ->label('Hausnummer')
+                        ->maxLength(20),
+
+                    TextInput::make('zip')
+                        ->label('PLZ')
+                        ->maxLength(20),
+
+                    TextInput::make('city')
+                        ->label('Ort')
+                        ->maxLength(100),
+                ]),
+
+            Actions::make([
+                Action::make('saveProfile')
+                    ->label('Profil speichern')
+                    ->icon('heroicon-o-check')
+                    ->color('primary')
+                    ->action('saveProfile'),
+            ]),
+
+            Section::make('Passwort ändern')
+                ->schema([
+                    TextInput::make('current_password')
+                        ->label('Aktuelles Passwort')
+                        ->password()
+                        ->revealable()
+                        ->dehydrated(false),
+
+                    TextInput::make('new_password')
+                        ->label('Neues Passwort')
+                        ->password()
+                        ->revealable()
+                        ->minLength(8)
+                        ->same('new_password_confirmation')
+                        ->dehydrated(false),
+
+                    TextInput::make('new_password_confirmation')
+                        ->label('Passwort bestätigen')
+                        ->password()
+                        ->revealable()
+                        ->dehydrated(false),
+                ]),
+
+            Actions::make([
+                Action::make('changePassword')
+                    ->label('Passwort ändern')
+                    ->icon('heroicon-o-lock-closed')
+                    ->color('warning')
+                    ->action('changePassword'),
+            ]),
         ]);
-    }
-
-    // ─── Schemas ────────────────────────────────────────────────────────────
-
-    public function profileForm(Schema $schema): Schema
-    {
-        return $schema
-            ->statePath('profileData')
-            ->components([
-                Section::make('Persönliche Daten')
-                    ->columns(2)
-                    ->schema([
-                        TextInput::make('first_name')
-                            ->label('Vorname')
-                            ->required()
-                            ->maxLength(100),
-
-                        TextInput::make('last_name')
-                            ->label('Nachname')
-                            ->required()
-                            ->maxLength(100),
-
-                        TextInput::make('email')
-                            ->label('E-Mail')
-                            ->email()
-                            ->required()
-                            ->maxLength(255),
-
-                        DatePicker::make('birth_date')
-                            ->label('Geburtsdatum')
-                            ->displayFormat('d.m.Y'),
-
-                        TextInput::make('phone')
-                            ->label('Telefon')
-                            ->tel()
-                            ->maxLength(50),
-
-                        TextInput::make('phone_mobile')
-                            ->label('Mobil')
-                            ->tel()
-                            ->maxLength(50),
-                    ]),
-
-                Section::make('Adresse')
-                    ->columns(2)
-                    ->schema([
-                        TextInput::make('address')
-                            ->label('Straße')
-                            ->maxLength(200),
-
-                        TextInput::make('house_number')
-                            ->label('Hausnummer')
-                            ->maxLength(20),
-
-                        TextInput::make('zip')
-                            ->label('PLZ')
-                            ->maxLength(20),
-
-                        TextInput::make('city')
-                            ->label('Ort')
-                            ->maxLength(100),
-                    ]),
-
-                Actions::make([
-                    Action::make('saveProfile')
-                        ->label('Profil speichern')
-                        ->icon('heroicon-o-check')
-                        ->color('primary')
-                        ->action('saveProfile'),
-                ]),
-            ]);
-    }
-
-    public function passwordForm(Schema $schema): Schema
-    {
-        return $schema
-            ->statePath('passwordData')
-            ->components([
-                Section::make('Passwort ändern')
-                    ->schema([
-                        TextInput::make('current_password')
-                            ->label('Aktuelles Passwort')
-                            ->password()
-                            ->revealable()
-                            ->required(),
-
-                        TextInput::make('new_password')
-                            ->label('Neues Passwort')
-                            ->password()
-                            ->revealable()
-                            ->required()
-                            ->minLength(8)
-                            ->same('new_password_confirmation'),
-
-                        TextInput::make('new_password_confirmation')
-                            ->label('Passwort bestätigen')
-                            ->password()
-                            ->revealable()
-                            ->required(),
-                    ]),
-
-                Actions::make([
-                    Action::make('changePassword')
-                        ->label('Passwort ändern')
-                        ->icon('heroicon-o-lock-closed')
-                        ->color('warning')
-                        ->action('changePassword'),
-                ]),
-            ]);
     }
 
     // ─── Action-Handler ─────────────────────────────────────────────────────
 
     public function saveProfile(): void
     {
-        $data     = $this->profileData;
+        $data     = $this->form->getState();
         $employee = $this->getEmployee();
 
         if (! $employee) {
@@ -214,20 +192,27 @@ class MeinProfil extends Page
 
     public function changePassword(): void
     {
-        $data = $this->passwordData;
+        $data = $this->form->getRawState();
         $user = auth()->user();
 
-        if (! Hash::check($data['current_password'] ?? '', $user->password)) {
+        $current = $data['current_password'] ?? '';
+        $new     = $data['new_password']     ?? '';
+        $confirm = $data['new_password_confirmation'] ?? '';
+
+        if (! Hash::check($current, $user->password)) {
             Notification::make()->title('Das aktuelle Passwort ist falsch.')->danger()->send();
             return;
         }
 
+        if ($new !== $confirm || strlen($new) < 8) {
+            Notification::make()->title('Passwörter stimmen nicht überein oder sind zu kurz.')->danger()->send();
+            return;
+        }
+
         $user->update([
-            'password'             => $data['new_password'],
+            'password'             => $new,
             'must_change_password' => false,
         ]);
-
-        $this->passwordData = [];
 
         Notification::make()->title('Passwort erfolgreich geändert.')->success()->send();
     }
