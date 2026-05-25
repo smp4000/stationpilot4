@@ -760,6 +760,50 @@ class EmployeeResource extends Resource
                             ->send();
                     }),
 
+                // ── App-Passwort zurücksetzen ─────────────────────
+                Action::make('app_passwort_reset')
+                    ->label('App-Passwort zurücksetzen')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('warning')
+                    ->visible(fn (Employee $record): bool =>
+                        !is_null($record->user_id) && !$record->deleted_at
+                    )
+                    ->requiresConfirmation()
+                    ->modalHeading('App-Passwort zurücksetzen?')
+                    ->modalDescription(fn (Employee $record): string =>
+                        'Ein neues temporäres Passwort wird generiert und an ' . $record->email . ' gesendet.'
+                    )
+                    ->modalSubmitActionLabel('Zurücksetzen & E-Mail senden')
+                    ->action(function (Employee $record): void {
+                        $user = $record->user;
+                        if (! $user) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('Kein App-Account verknüpft.')
+                                ->danger()->send();
+                            return;
+                        }
+
+                        $plain = Str::random(12);
+                        $user->update([
+                            'password'             => $plain,
+                            'must_change_password' => true,
+                            'is_active'            => true,
+                        ]);
+
+                        try {
+                            Mail::to($user->email)->send(new EmployeeAppAccessMail($user, $plain));
+                            \Filament\Notifications\Notification::make()
+                                ->title('Passwort zurückgesetzt')
+                                ->body('Neues temporäres Passwort wurde an ' . $user->email . ' gesendet.')
+                                ->success()->send();
+                        } catch (\Throwable) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('Passwort zurückgesetzt')
+                                ->body('Passwort geändert, aber E-Mail konnte nicht gesendet werden. Neues Passwort: ' . $plain)
+                                ->warning()->send();
+                        }
+                    }),
+
                 // ── App-Zugang entziehen ──────────────────────────
                 Action::make('app_zugang_entziehen')
                     ->label('App-Zugang entziehen')
