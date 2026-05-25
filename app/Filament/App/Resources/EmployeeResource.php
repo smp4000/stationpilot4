@@ -695,19 +695,38 @@ class EmployeeResource extends Resource
                         // Zufälliges Passwort
                         $plain = Str::random(12);
 
-                        // User-Account anlegen
-                        $user = User::create([
-                            'tenant_id'          => $record->tenant_id,
-                            'first_name'         => $record->first_name,
-                            'last_name'          => $record->last_name,
-                            'email'              => $record->email,
-                            'password'              => Hash::make($plain),
-                            'type'                  => 'employee',
-                            'is_active'             => true,
-                            'must_change_password'  => true,
-                            'email_verified_at'     => now(),
-                            'locale'                => 'de',
-                        ]);
+                        // Bestehenden (evtl. deaktivierten) User wiederverwenden
+                        // oder neuen anlegen – verhindert unique-Constraint-Fehler
+                        $user = User::withTrashed()
+                            ->where('email', $record->email)
+                            ->where('tenant_id', $record->tenant_id)
+                            ->first();
+
+                        if ($user) {
+                            $user->restore(); // stellt soft-delete wieder her (falls gelöscht)
+                            $user->update([
+                                'first_name'           => $record->first_name,
+                                'last_name'            => $record->last_name,
+                                'password'             => Hash::make($plain),
+                                'type'                 => 'employee',
+                                'is_active'            => true,
+                                'must_change_password' => true,
+                                'email_verified_at'    => now(),
+                            ]);
+                        } else {
+                            $user = User::create([
+                                'tenant_id'            => $record->tenant_id,
+                                'first_name'           => $record->first_name,
+                                'last_name'            => $record->last_name,
+                                'email'                => $record->email,
+                                'password'             => Hash::make($plain),
+                                'type'                 => 'employee',
+                                'is_active'            => true,
+                                'must_change_password' => true,
+                                'email_verified_at'    => now(),
+                                'locale'               => 'de',
+                            ]);
+                        }
 
                         // Mit Employee verknüpfen
                         $record->user_id = $user->id;
