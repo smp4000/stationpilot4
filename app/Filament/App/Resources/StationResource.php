@@ -1115,17 +1115,21 @@ class StationResource extends Resource
                             $lat         = $get('latitude');
                             $lng         = $get('longitude');
                             $name        = $get('name') ?: 'Station';
-                            // Wettbewerber aus DB laden (neue relationale Struktur)
+                            // Wettbewerber aus DB laden inkl. Benzinpreis-Cache-Preise
                             $competitors = $record
-                                ? $record->stationCompetitors->map(fn ($c) => [
-                                    'name'        => $c->name,
-                                    'brand'       => $c->brand,
-                                    'street'      => $c->street,
-                                    'city'        => $c->city,
-                                    'distance_km' => $c->distance_km,
-                                    'lat'         => $c->lat,
-                                    'lng'         => $c->lng,
-                                ])->toArray()
+                                ? $record->stationCompetitors()->with('benzinpreisCache')->get()
+                                    ->map(fn ($c) => [
+                                        'name'        => $c->name,
+                                        'brand'       => $c->brand,
+                                        'street'      => $c->street,
+                                        'city'        => $c->city,
+                                        'distance_km' => $c->distance_km,
+                                        'lat'         => $c->lat,
+                                        'lng'         => $c->lng,
+                                        'price_super' => $c->benzinpreisCache?->e5    ? (float) $c->benzinpreisCache->e5    : null,
+                                        'price_e10'   => $c->benzinpreisCache?->e10   ? (float) $c->benzinpreisCache->e10   : null,
+                                        'price_diesel'=> $c->benzinpreisCache?->diesel ? (float) $c->benzinpreisCache->diesel : null,
+                                    ])->toArray()
                                 : [];
                             $priceSuper  = $get('price_super');
                             $priceE10    = $get('price_e10');
