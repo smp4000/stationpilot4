@@ -5,11 +5,14 @@ namespace App\Filament\App\Pages;
 use App\Models\Employee;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\Hash;
 
@@ -31,8 +34,6 @@ class MeinProfil extends Page
 
     protected static ?int $navigationSort = 1;
 
-    // ─── Sichtbarkeit ───────────────────────────────────────────────────────
-
     public static function canAccess(): bool
     {
         return auth()->user()?->isEmployee() ?? false;
@@ -47,119 +48,198 @@ class MeinProfil extends Page
             return;
         }
 
-        // Genau wie Filament's eigener EditProfile: $this->form->fill($data)
         $this->form->fill([
-            'first_name'   => $employee->first_name,
-            'last_name'    => $employee->last_name,
-            'email'        => $employee->email,
-            'phone'        => $employee->phone,
-            'phone_mobile' => $employee->phone_mobile,
-            'birth_date'   => $employee->birth_date?->format('Y-m-d'),
-            'address'      => $employee->address,
-            'house_number' => $employee->house_number,
-            'zip'          => $employee->zip,
-            'city'         => $employee->city,
+            // Tab 1 – Persönliche Daten
+            'first_name'      => $employee->first_name,
+            'last_name'       => $employee->last_name,
+            'birth_name'      => $employee->birth_name,
+            'birth_date'      => $employee->birth_date?->format('Y-m-d'),
+            'birth_place'     => $employee->birth_place,
+            'gender'          => $employee->gender,
+            'marital_status'  => $employee->marital_status,
+            'nationality'     => $employee->nationality,
+
+            // Tab 2 – Kontakt & Adresse
+            'email'           => $employee->email,
+            'phone'           => $employee->phone,
+            'phone_mobile'    => $employee->phone_mobile,
+            'address'         => $employee->address,
+            'house_number'    => $employee->house_number,
+            'zip'             => $employee->zip,
+            'city'            => $employee->city,
+            'country'         => $employee->country,
         ]);
     }
 
-    // ─── Haupt-Schema ────────────────────────────────────────────────────────
+    // ─── Schema ─────────────────────────────────────────────────────────────
 
     public function form(Schema $schema): Schema
     {
         return $schema->components([
 
-            Section::make('Persönliche Daten')
-                ->columns(2)
-                ->schema([
-                    TextInput::make('first_name')
-                        ->label('Vorname')
-                        ->required()
-                        ->maxLength(100),
+            Tabs::make('Profil')
+                ->tabs([
 
-                    TextInput::make('last_name')
-                        ->label('Nachname')
-                        ->required()
-                        ->maxLength(100),
+                    // ── Tab 1: Persönliche Daten ──────────────────────────
+                    Tab::make('Persönliche Daten')
+                        ->icon('heroicon-o-user')
+                        ->schema([
+                            Section::make()
+                                ->columns(2)
+                                ->schema([
+                                    TextInput::make('first_name')
+                                        ->label('Vorname')
+                                        ->required()
+                                        ->maxLength(100),
 
-                    TextInput::make('email')
-                        ->label('E-Mail')
-                        ->email()
-                        ->required()
-                        ->maxLength(255),
+                                    TextInput::make('last_name')
+                                        ->label('Nachname')
+                                        ->required()
+                                        ->maxLength(100),
 
-                    DatePicker::make('birth_date')
-                        ->label('Geburtsdatum')
-                        ->displayFormat('d.m.Y'),
+                                    TextInput::make('birth_name')
+                                        ->label('Geburtsname')
+                                        ->maxLength(100),
 
-                    TextInput::make('phone')
-                        ->label('Telefon')
-                        ->tel()
-                        ->maxLength(50),
+                                    DatePicker::make('birth_date')
+                                        ->label('Geburtsdatum')
+                                        ->displayFormat('d.m.Y'),
 
-                    TextInput::make('phone_mobile')
-                        ->label('Mobil')
-                        ->tel()
-                        ->maxLength(50),
+                                    TextInput::make('birth_place')
+                                        ->label('Geburtsort')
+                                        ->maxLength(100),
+
+                                    Select::make('gender')
+                                        ->label('Geschlecht')
+                                        ->options([
+                                            'm' => 'Männlich',
+                                            'w' => 'Weiblich',
+                                            'd' => 'Divers',
+                                        ]),
+
+                                    Select::make('marital_status')
+                                        ->label('Familienstand')
+                                        ->options([
+                                            'ledig'              => 'Ledig',
+                                            'verheiratet'        => 'Verheiratet',
+                                            'geschieden'         => 'Geschieden',
+                                            'verwitwet'          => 'Verwitwet',
+                                            'eingetragene_partnerschaft' => 'Eingetragene Partnerschaft',
+                                        ]),
+
+                                    TextInput::make('nationality')
+                                        ->label('Staatsangehörigkeit')
+                                        ->maxLength(100),
+                                ]),
+
+                            Actions::make([
+                                Action::make('saveProfile')
+                                    ->label('Profil speichern')
+                                    ->icon('heroicon-o-check')
+                                    ->color('primary')
+                                    ->action('saveProfile'),
+                            ]),
+                        ]),
+
+                    // ── Tab 2: Kontakt & Adresse ──────────────────────────
+                    Tab::make('Kontakt & Adresse')
+                        ->icon('heroicon-o-map-pin')
+                        ->schema([
+                            Section::make('Kontakt')
+                                ->columns(2)
+                                ->schema([
+                                    TextInput::make('email')
+                                        ->label('E-Mail')
+                                        ->email()
+                                        ->required()
+                                        ->maxLength(255),
+
+                                    TextInput::make('phone')
+                                        ->label('Telefon')
+                                        ->tel()
+                                        ->maxLength(50),
+
+                                    TextInput::make('phone_mobile')
+                                        ->label('Mobil')
+                                        ->tel()
+                                        ->maxLength(50),
+                                ]),
+
+                            Section::make('Adresse')
+                                ->columns(2)
+                                ->schema([
+                                    TextInput::make('address')
+                                        ->label('Straße')
+                                        ->maxLength(200),
+
+                                    TextInput::make('house_number')
+                                        ->label('Hausnummer')
+                                        ->maxLength(20),
+
+                                    TextInput::make('zip')
+                                        ->label('PLZ')
+                                        ->maxLength(20),
+
+                                    TextInput::make('city')
+                                        ->label('Ort')
+                                        ->maxLength(100),
+
+                                    TextInput::make('country')
+                                        ->label('Land')
+                                        ->maxLength(100)
+                                        ->columnSpanFull(),
+                                ]),
+
+                            Actions::make([
+                                Action::make('saveProfile2')
+                                    ->label('Speichern')
+                                    ->icon('heroicon-o-check')
+                                    ->color('primary')
+                                    ->action('saveProfile'),
+                            ]),
+                        ]),
+
+                    // ── Tab 3: Passwort ───────────────────────────────────
+                    Tab::make('Passwort ändern')
+                        ->icon('heroicon-o-lock-closed')
+                        ->schema([
+                            Section::make()
+                                ->schema([
+                                    TextInput::make('current_password')
+                                        ->label('Aktuelles Passwort')
+                                        ->password()
+                                        ->revealable()
+                                        ->required()
+                                        ->dehydrated(false),
+
+                                    TextInput::make('new_password')
+                                        ->label('Neues Passwort')
+                                        ->password()
+                                        ->revealable()
+                                        ->required()
+                                        ->minLength(8)
+                                        ->same('new_password_confirmation')
+                                        ->dehydrated(false),
+
+                                    TextInput::make('new_password_confirmation')
+                                        ->label('Passwort bestätigen')
+                                        ->password()
+                                        ->revealable()
+                                        ->required()
+                                        ->dehydrated(false),
+                                ]),
+
+                            Actions::make([
+                                Action::make('changePassword')
+                                    ->label('Passwort ändern')
+                                    ->icon('heroicon-o-lock-closed')
+                                    ->color('warning')
+                                    ->action('changePassword'),
+                            ]),
+                        ]),
+
                 ]),
 
-            Section::make('Adresse')
-                ->columns(2)
-                ->schema([
-                    TextInput::make('address')
-                        ->label('Straße')
-                        ->maxLength(200),
-
-                    TextInput::make('house_number')
-                        ->label('Hausnummer')
-                        ->maxLength(20),
-
-                    TextInput::make('zip')
-                        ->label('PLZ')
-                        ->maxLength(20),
-
-                    TextInput::make('city')
-                        ->label('Ort')
-                        ->maxLength(100),
-                ]),
-
-            Actions::make([
-                Action::make('saveProfile')
-                    ->label('Profil speichern')
-                    ->icon('heroicon-o-check')
-                    ->color('primary')
-                    ->action('saveProfile'),
-            ]),
-
-            Section::make('Passwort ändern')
-                ->schema([
-                    TextInput::make('current_password')
-                        ->label('Aktuelles Passwort')
-                        ->password()
-                        ->revealable()
-                        ->dehydrated(false),
-
-                    TextInput::make('new_password')
-                        ->label('Neues Passwort')
-                        ->password()
-                        ->revealable()
-                        ->minLength(8)
-                        ->same('new_password_confirmation')
-                        ->dehydrated(false),
-
-                    TextInput::make('new_password_confirmation')
-                        ->label('Passwort bestätigen')
-                        ->password()
-                        ->revealable()
-                        ->dehydrated(false),
-                ]),
-
-            Actions::make([
-                Action::make('changePassword')
-                    ->label('Passwort ändern')
-                    ->icon('heroicon-o-lock-closed')
-                    ->color('warning')
-                    ->action('changePassword'),
-            ]),
         ]);
     }
 
@@ -175,16 +255,22 @@ class MeinProfil extends Page
         }
 
         $employee->update([
-            'first_name'   => $data['first_name']   ?? null,
-            'last_name'    => $data['last_name']     ?? null,
-            'email'        => $data['email']         ?? null,
-            'phone'        => $data['phone']         ?? null,
-            'phone_mobile' => $data['phone_mobile']  ?? null,
-            'birth_date'   => $data['birth_date']    ?? null,
-            'address'      => $data['address']       ?? null,
-            'house_number' => $data['house_number']  ?? null,
-            'zip'          => $data['zip']           ?? null,
-            'city'         => $data['city']          ?? null,
+            'first_name'     => $data['first_name']     ?? null,
+            'last_name'      => $data['last_name']      ?? null,
+            'birth_name'     => $data['birth_name']     ?? null,
+            'birth_date'     => $data['birth_date']     ?? null,
+            'birth_place'    => $data['birth_place']    ?? null,
+            'gender'         => $data['gender']         ?? null,
+            'marital_status' => $data['marital_status'] ?? null,
+            'nationality'    => $data['nationality']    ?? null,
+            'email'          => $data['email']          ?? null,
+            'phone'          => $data['phone']          ?? null,
+            'phone_mobile'   => $data['phone_mobile']   ?? null,
+            'address'        => $data['address']        ?? null,
+            'house_number'   => $data['house_number']   ?? null,
+            'zip'            => $data['zip']            ?? null,
+            'city'           => $data['city']           ?? null,
+            'country'        => $data['country']        ?? null,
         ]);
 
         Notification::make()->title('Profil gespeichert.')->success()->send();
@@ -192,12 +278,11 @@ class MeinProfil extends Page
 
     public function changePassword(): void
     {
-        $data = $this->form->getRawState();
-        $user = auth()->user();
-
-        $current = $data['current_password'] ?? '';
-        $new     = $data['new_password']     ?? '';
-        $confirm = $data['new_password_confirmation'] ?? '';
+        $state   = $this->form->getRawState();
+        $user    = auth()->user();
+        $current = $state['current_password'] ?? '';
+        $new     = $state['new_password']     ?? '';
+        $confirm = $state['new_password_confirmation'] ?? '';
 
         if (! Hash::check($current, $user->password)) {
             Notification::make()->title('Das aktuelle Passwort ist falsch.')->danger()->send();
@@ -205,7 +290,7 @@ class MeinProfil extends Page
         }
 
         if ($new !== $confirm || strlen($new) < 8) {
-            Notification::make()->title('Passwörter stimmen nicht überein oder sind zu kurz.')->danger()->send();
+            Notification::make()->title('Passwörter stimmen nicht überein oder sind zu kurz (mind. 8 Zeichen).')->danger()->send();
             return;
         }
 
