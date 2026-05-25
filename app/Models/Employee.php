@@ -254,6 +254,14 @@ class Employee extends Model
         return $this->hasOne(EmployeePreviousEmployment::class);
     }
 
+    /**
+     * Alias als HasMany für Filament-Repeater (DB-Unique-Constraint sichert max. 1 Eintrag).
+     */
+    public function previousEmploymentList(): HasMany
+    {
+        return $this->hasMany(EmployeePreviousEmployment::class);
+    }
+
     public function documents(): HasMany
     {
         return $this->hasMany(EmployeeDocument::class)->orderByDesc('created_at');
