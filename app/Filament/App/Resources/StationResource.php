@@ -1304,9 +1304,9 @@ class StationResource extends Resource
                         'COCO' => 'success', 'CODO' => 'info', 'DODO' => 'warning', default => 'gray',
                     })->placeholder('—'),
 
-                BooleanColumn::make('is_active')->label('Aktiv')->sortable(),
+                IconColumn::make('is_active')->label('Aktiv')->boolean()->sortable(),
 
-                BooleanColumn::make('has_coordinates')
+                IconColumn::make('has_coordinates')
                     ->label('Karte')
                     ->getStateUsing(fn($record) => $record->hasCoordinates())
                     ->trueIcon('heroicon-o-map-pin')->falseIcon('heroicon-o-x-mark')

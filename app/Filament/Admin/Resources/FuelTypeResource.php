@@ -12,11 +12,11 @@ use Filament\Forms\Components\Toggle;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
-use Filament\Tables\Actions\BulkActionGroup;
-use Filament\Tables\Actions\DeleteBulkAction;
-use Filament\Tables\Columns\BooleanColumn;
 use Filament\Tables\Columns\ColorColumn;
+use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -136,8 +136,9 @@ class FuelTypeResource extends Resource
                     ->placeholder('—')
                     ->sortable(),
 
-                BooleanColumn::make('is_active')
+                IconColumn::make('is_active')
                     ->label('Aktiv')
+                    ->boolean()
                     ->sortable(),
 
                 TextColumn::make('sort_order')
