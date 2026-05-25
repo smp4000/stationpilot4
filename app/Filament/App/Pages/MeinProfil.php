@@ -4,24 +4,19 @@ namespace App\Filament\App\Pages;
 
 use App\Models\Employee;
 use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\Placeholder;
-use Filament\Forms\Components\Section;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Concerns\InteractsWithForms;
-use Filament\Forms\Contracts\HasForms;
-use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\Hash;
 
 /**
  * Persönliches Profil für eingeloggte Mitarbeiter im App-Panel.
  * Nur sichtbar für User vom Typ 'employee'.
  */
-class MeinProfil extends Page implements HasForms
+class MeinProfil extends Page
 {
-    use InteractsWithForms;
-
     protected string $view = 'filament.app.pages.mein-profil';
 
     protected static \BackedEnum|string|null $navigationIcon = 'heroicon-o-user-circle';
@@ -43,46 +38,37 @@ class MeinProfil extends Page implements HasForms
 
     // ─── State ──────────────────────────────────────────────────────────────
 
-    public ?array $profileData = [];
-    public ?array $passwordData = [];
+    public ?array $profileData   = [];
+    public ?array $passwordData  = [];
 
     public function mount(): void
     {
         $employee = $this->getEmployee();
-
         if (! $employee) {
-            Notification::make()
-                ->title('Kein Mitarbeiter-Profil gefunden.')
-                ->warning()
-                ->send();
             return;
         }
 
-        $this->profileForm->fill([
+        $this->profileData = [
             'first_name'   => $employee->first_name,
             'last_name'    => $employee->last_name,
             'email'        => $employee->email,
             'phone'        => $employee->phone,
             'phone_mobile' => $employee->phone_mobile,
-            'birth_date'   => $employee->birth_date,
+            'birth_date'   => $employee->birth_date?->format('Y-m-d'),
             'address'      => $employee->address,
             'house_number' => $employee->house_number,
             'zip'          => $employee->zip,
             'city'         => $employee->city,
-        ]);
+        ];
     }
 
-    // ─── Formulare ──────────────────────────────────────────────────────────
+    // ─── Schemas (Filament 5) ────────────────────────────────────────────────
 
-    protected function getForms(): array
+    public function profileForm(Schema $schema): Schema
     {
-        return ['profileForm', 'passwordForm'];
-    }
-
-    public function profileForm(Form $form): Form
-    {
-        return $form
-            ->schema([
+        return $schema
+            ->statePath('profileData')
+            ->components([
                 Section::make('Persönliche Daten')
                     ->columns(2)
                     ->schema([
@@ -136,14 +122,14 @@ class MeinProfil extends Page implements HasForms
                             ->label('Ort')
                             ->maxLength(100),
                     ]),
-            ])
-            ->statePath('profileData');
+            ]);
     }
 
-    public function passwordForm(Form $form): Form
+    public function passwordForm(Schema $schema): Schema
     {
-        return $form
-            ->schema([
+        return $schema
+            ->statePath('passwordData')
+            ->components([
                 Section::make('Passwort ändern')
                     ->schema([
                         TextInput::make('current_password')
@@ -166,15 +152,14 @@ class MeinProfil extends Page implements HasForms
                             ->revealable()
                             ->required(),
                     ]),
-            ])
-            ->statePath('passwordData');
+            ]);
     }
 
     // ─── Actions ────────────────────────────────────────────────────────────
 
     public function saveProfile(): void
     {
-        $data = $this->profileForm->getState();
+        $data     = $this->profileData;
         $employee = $this->getEmployee();
 
         if (! $employee) {
@@ -182,16 +167,16 @@ class MeinProfil extends Page implements HasForms
         }
 
         $employee->update([
-            'first_name'   => $data['first_name'],
-            'last_name'    => $data['last_name'],
-            'email'        => $data['email'],
-            'phone'        => $data['phone'] ?? null,
-            'phone_mobile' => $data['phone_mobile'] ?? null,
-            'birth_date'   => $data['birth_date'] ?? null,
-            'address'      => $data['address'] ?? null,
-            'house_number' => $data['house_number'] ?? null,
-            'zip'          => $data['zip'] ?? null,
-            'city'         => $data['city'] ?? null,
+            'first_name'   => $data['first_name']   ?? null,
+            'last_name'    => $data['last_name']     ?? null,
+            'email'        => $data['email']         ?? null,
+            'phone'        => $data['phone']         ?? null,
+            'phone_mobile' => $data['phone_mobile']  ?? null,
+            'birth_date'   => $data['birth_date']    ?? null,
+            'address'      => $data['address']       ?? null,
+            'house_number' => $data['house_number']  ?? null,
+            'zip'          => $data['zip']           ?? null,
+            'city'         => $data['city']          ?? null,
         ]);
 
         Notification::make()
@@ -202,10 +187,10 @@ class MeinProfil extends Page implements HasForms
 
     public function changePassword(): void
     {
-        $data = $this->passwordForm->getState();
+        $data = $this->passwordData;
         $user = auth()->user();
 
-        if (! Hash::check($data['current_password'], $user->password)) {
+        if (! Hash::check($data['current_password'] ?? '', $user->password)) {
             Notification::make()
                 ->title('Das aktuelle Passwort ist falsch.')
                 ->danger()
@@ -214,7 +199,7 @@ class MeinProfil extends Page implements HasForms
         }
 
         $user->update([
-            'password'             => Hash::make($data['new_password']),
+            'password'             => $data['new_password'],
             'must_change_password' => false,
         ]);
 

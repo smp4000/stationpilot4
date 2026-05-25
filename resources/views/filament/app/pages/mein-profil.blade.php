@@ -13,7 +13,7 @@
 
         {{-- Stationen-Übersicht --}}
         @php
-            $stations = $employee->stations()->get();
+            $stations       = $employee->stations()->get();
             $primaryStation = $employee->station;
         @endphp
 
@@ -39,9 +39,8 @@
         @endif
 
         {{-- Profildaten --}}
-        <form wire:submit="saveProfile">
-            {{ $this->profileForm }}
-
+        <form wire:submit.prevent="saveProfile">
+            <x-filament-schemas::component :schema="$this->profileForm" />
             <div class="mt-4 flex justify-end">
                 <x-filament::button type="submit" color="primary">
                     Profil speichern
@@ -50,9 +49,8 @@
         </form>
 
         {{-- Passwort ändern --}}
-        <form wire:submit="changePassword" class="mt-6">
-            {{ $this->passwordForm }}
-
+        <form wire:submit.prevent="changePassword" class="mt-6">
+            <x-filament-schemas::component :schema="$this->passwordForm" />
             <div class="mt-4 flex justify-end">
                 <x-filament::button type="submit" color="warning">
                     Passwort ändern
