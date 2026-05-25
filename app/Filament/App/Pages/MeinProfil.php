@@ -52,7 +52,7 @@ class MeinProfil extends Page
             return;
         }
 
-        $this->profileData = [
+        $this->profileForm->fill([
             'first_name'   => $employee->first_name,
             'last_name'    => $employee->last_name,
             'email'        => $employee->email,
@@ -63,7 +63,7 @@ class MeinProfil extends Page
             'house_number' => $employee->house_number,
             'zip'          => $employee->zip,
             'city'         => $employee->city,
-        ];
+        ]);
     }
 
     // ─── Page-Inhalt (Filament 5) ────────────────────────────────────────────
