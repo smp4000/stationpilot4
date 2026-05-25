@@ -362,8 +362,7 @@
         const OWN_SUPER  = {{ $priceSuper  ? (float)$priceSuper  : 'null' }};
         const OWN_E10    = {{ $priceE10    ? (float)$priceE10    : 'null' }};
         const OWN_DIESEL = {{ $priceDiesel ? (float)$priceDiesel : 'null' }};
-        const _ownPriceIcon = makePricePinIcon(OWN_SUPER, OWN_E10, OWN_DIESEL);
-        const ownIcon = _ownPriceIcon || makeCircleIcon('#2563eb', '#1e40af', '★');
+        const ownIcon = makeCircleIcon('#2563eb', '#1e40af', '★');
         const ownMarker = L.marker([OWN_LAT, OWN_LNG], { icon: ownIcon, draggable: false })
             .addTo(map)
             .bindPopup(`<b>${OWN_NAME}</b><br>Diese Station` + priceBadgesHtml(OWN_SUPER, OWN_E10, OWN_DIESEL));
@@ -396,8 +395,7 @@
         OTHER_STATIONS.forEach(function(st) {
             if (!st.lat || !st.lng) return;
             const dist = haversine(OWN_LAT, OWN_LNG, st.lat, st.lng);
-            const _stIcon = makePricePinIcon(st.price_super, st.price_e10, st.price_diesel);
-            const icon = _stIcon || makeCircleIcon('#f97316', '#c2410c', '●');
+            const icon = makeCircleIcon('#f97316', '#c2410c', '●');
             const marker = L.marker([st.lat, st.lng], { icon, draggable: false })
                 .addTo(map)
                 .bindPopup(`<b>${st.name}</b><br>${st.city}<br>${formatDist(dist)} entfernt`
@@ -412,8 +410,7 @@
             if (!c.name || !c.lat || !c.lng) return;
             const distKm = c.distance_km != null ? c.distance_km : haversine(OWN_LAT, OWN_LNG, c.lat, c.lng);
             const dist   = distKm.toFixed(1) + ' km';
-            const _cIcon = makePricePinIcon(c.price_super, c.price_e10, c.price_diesel);
-            const icon = _cIcon || makeCircleIcon('#ef4444', '#991b1b', String(idx + 1));
+            const icon = makeCircleIcon('#ef4444', '#991b1b', String(idx + 1));
             const addr = [c.street, c.city].filter(Boolean).join(', ');
             const marker = L.marker([c.lat, c.lng], { icon, draggable: false })
                 .addTo(map)
