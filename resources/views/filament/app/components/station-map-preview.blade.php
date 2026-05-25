@@ -183,9 +183,9 @@
                 <td style="padding:6px 10px;color:#f97316;">●</td>
                 <td style="padding:6px 10px;color:#374151;">{{ $st->name }}</td>
                 <td style="padding:6px 10px;text-align:right;color:#6b7280;" class="smap-dist-cell" data-lat="{{ $st->latitude }}" data-lng="{{ $st->longitude }}">–</td>
-                <td style="padding:6px 10px;text-align:right;color:#6b7280;">–</td>
-                <td style="padding:6px 10px;text-align:right;color:#6b7280;">–</td>
-                <td style="padding:6px 10px;text-align:right;color:#6b7280;">–</td>
+                <td style="padding:6px 10px;text-align:right;color:#1e40af;">{{ $st->price_super  ? $fmt($st->price_super)  : '–' }}</td>
+                <td style="padding:6px 10px;text-align:right;color:#166534;">{{ $st->price_e10    ? $fmt($st->price_e10)    : '–' }}</td>
+                <td style="padding:6px 10px;text-align:right;color:#854d0e;">{{ $st->price_diesel ? $fmt($st->price_diesel) : '–' }}</td>
             </tr>
             @endforeach
             @foreach($competitors as $i => $c)

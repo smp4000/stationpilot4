@@ -1139,7 +1139,8 @@ class StationResource extends Resource
                             $otherStations = \App\Models\Station::where('tenant_id', $tenantId)
                                 ->whereNotNull('latitude')->whereNotNull('longitude')
                                 ->when($record?->id, fn($q) => $q->where('id', '!=', $record->id))
-                                ->get(['id', 'name', 'street', 'house_number', 'city', 'latitude', 'longitude']);
+                                ->get(['id', 'name', 'street', 'house_number', 'city', 'latitude', 'longitude',
+                                       'price_super', 'price_e10', 'price_diesel']);
 
                             if (! $lat || ! $lng) {
                                 return new HtmlString('<p class="text-sm text-gray-400 py-4">Koordinaten eingeben oder "Von Adresse übernehmen" klicken.</p>');
