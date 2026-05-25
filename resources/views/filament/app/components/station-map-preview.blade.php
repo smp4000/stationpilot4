@@ -8,21 +8,27 @@
 
     // Pre-encode JSON for JS — avoids Blade @json() multi-line parse errors
     $otherStationsJson = $otherStations->values()->map(fn($s) => [
-        'name' => $s->name,
-        'lat'  => (float) $s->latitude,
-        'lng'  => (float) $s->longitude,
-        'city' => $s->city,
+        'name'         => $s->name,
+        'lat'          => (float) $s->latitude,
+        'lng'          => (float) $s->longitude,
+        'city'         => $s->city,
+        'price_super'  => $s->price_super  ? (float) $s->price_super  : null,
+        'price_e10'    => $s->price_e10    ? (float) $s->price_e10    : null,
+        'price_diesel' => $s->price_diesel ? (float) $s->price_diesel : null,
     ])->toJson(JSON_UNESCAPED_UNICODE);
 
     $competitorsJson = json_encode(
         array_values(array_map(fn($c) => [
-            'name'        => $c['name'] ?? '',
-            'brand'       => $c['brand'] ?? '',
-            'street'      => $c['street'] ?? '',
-            'city'        => $c['city'] ?? '',
-            'distance_km' => isset($c['distance_km']) ? (float) $c['distance_km'] : null,
-            'lat'         => isset($c['lat'])  && $c['lat']  ? (float) $c['lat']  : null,
-            'lng'         => isset($c['lng'])  && $c['lng']  ? (float) $c['lng']  : null,
+            'name'         => $c['name'] ?? '',
+            'brand'        => $c['brand'] ?? '',
+            'street'       => $c['street'] ?? '',
+            'city'         => $c['city'] ?? '',
+            'distance_km'  => isset($c['distance_km']) ? (float) $c['distance_km'] : null,
+            'lat'          => isset($c['lat'])  && $c['lat']  ? (float) $c['lat']  : null,
+            'lng'          => isset($c['lng'])  && $c['lng']  ? (float) $c['lng']  : null,
+            'price_super'  => !empty($c['price_super'])  ? (float) $c['price_super']  : null,
+            'price_e10'    => !empty($c['price_e10'])    ? (float) $c['price_e10']    : null,
+            'price_diesel' => !empty($c['price_diesel']) ? (float) $c['price_diesel'] : null,
         ], $competitors)),
         JSON_UNESCAPED_UNICODE
     );
@@ -263,18 +269,43 @@
         });
     }
 
-    function makePriceIcon(color, border, priceLabel) {
-        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="80" height="48" viewBox="0 0 80 48">
-            <rect x="1" y="1" width="78" height="30" rx="6" fill="${color}" stroke="${border}" stroke-width="1.5" opacity=".95"/>
-            <text x="40" y="21" text-anchor="middle" font-size="12" font-weight="bold" fill="#fff" font-family="sans-serif">${priceLabel}</text>
-            <line x1="40" y1="32" x2="40" y2="48" stroke="${border}" stroke-width="2"/>
+    /** Pin with up to 2 price lines + triangle pointer */
+    function makePricePinIcon(superPrice, dieselPrice, color, border) {
+        const fmt = v => v ? v.toFixed(3).replace('.', ',') : null;
+        const lines = [];
+        if (superPrice) lines.push({ label: 'S', val: fmt(superPrice), color: '#bfdbfe' });
+        if (dieselPrice) lines.push({ label: 'D', val: fmt(dieselPrice), color: '#fef08a' });
+
+        if (!lines.length) return makeCircleIcon(color, border, '?');
+
+        const W = 88, ROW = 18, PAD = 8, ARR = 9;
+        const H = lines.length * ROW + PAD;
+        const totalH = H + ARR;
+
+        const textRows = lines.map((l, i) => {
+            const y = PAD/2 + ROW * i + 13;
+            return `<text x="8" y="${y}" font-size="10" fill="rgba(255,255,255,.7)" font-family="sans-serif">${l.label}</text>`
+                 + `<text x="${W-6}" y="${y}" text-anchor="end" font-size="11" font-weight="bold" fill="#fff" font-family="sans-serif">${l.val}</text>`;
+        }).join('');
+
+        // Divider line between rows
+        const divider = lines.length > 1
+            ? `<line x1="4" y1="${PAD/2 + ROW}" x2="${W-4}" y2="${PAD/2 + ROW}" stroke="rgba(255,255,255,.25)" stroke-width="1"/>`
+            : '';
+
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${totalH}" viewBox="0 0 ${W} ${totalH}">
+            <rect x="1" y="1" width="${W-2}" height="${H-2}" rx="5" fill="${color}" stroke="${border}" stroke-width="1.5" opacity=".97"/>
+            ${divider}
+            ${textRows}
+            <polygon points="${W/2-6},${H} ${W/2+6},${H} ${W/2},${totalH}" fill="${color}" stroke="${border}" stroke-width="1" stroke-linejoin="round"/>
         </svg>`;
+
         return L.divIcon({
             html: svg,
             className: '',
-            iconSize: [80, 48],
-            iconAnchor: [40, 48],
-            popupAnchor: [0, -48],
+            iconSize: [W, totalH],
+            iconAnchor: [W/2, totalH],
+            popupAnchor: [0, -(totalH + 4)],
         });
     }
 
@@ -298,8 +329,12 @@
             maxZoom: 19,
         }).addTo(map);
 
-        // Own station marker (blue, fixed — nicht verschiebbar)
-        const ownIcon = makeCircleIcon('#2563eb', '#1e40af', '★');
+        // Own station marker (blue price pin)
+        const OWN_SUPER  = {{ $priceSuper  ? (float)$priceSuper  : 'null' }};
+        const OWN_DIESEL = {{ $priceDiesel ? (float)$priceDiesel : 'null' }};
+        const ownIcon = (OWN_SUPER || OWN_DIESEL)
+            ? makePricePinIcon(OWN_SUPER, OWN_DIESEL, '#2563eb', '#1e40af')
+            : makeCircleIcon('#2563eb', '#1e40af', '★');
         const ownMarker = L.marker([OWN_LAT, OWN_LNG], { icon: ownIcon, draggable: false })
             .addTo(map)
             .bindPopup(`<b>${OWN_NAME}</b><br>Diese Station`);
@@ -327,39 +362,51 @@
             });
         }
 
-        // Other own stations (orange markers)
+        // Other own stations (orange price pins)
         const otherMarkers = [];
         OTHER_STATIONS.forEach(function(st) {
             if (!st.lat || !st.lng) return;
             const dist = haversine(OWN_LAT, OWN_LNG, st.lat, st.lng);
-            const icon = makeCircleIcon('#f97316', '#c2410c', '●');
+            const icon = (st.price_super || st.price_diesel)
+                ? makePricePinIcon(st.price_super, st.price_diesel, '#f97316', '#c2410c')
+                : makeCircleIcon('#f97316', '#c2410c', '●');
+            const priceInfo = [
+                st.price_super  ? `Super ${st.price_super.toFixed(3).replace('.',',')}` : null,
+                st.price_diesel ? `Diesel ${st.price_diesel.toFixed(3).replace('.',',')}` : null,
+            ].filter(Boolean).join(' &nbsp;·&nbsp; ');
             const marker = L.marker([st.lat, st.lng], { icon, draggable: false })
                 .addTo(map)
-                .bindPopup(`<b>${st.name}</b><br>${st.city}<br>${formatDist(dist)} entfernt`);
+                .bindPopup(`<b>${st.name}</b><br>${st.city}<br>${formatDist(dist)} entfernt`
+                    + (priceInfo ? `<br><small style="color:#f97316;">${priceInfo}</small>` : ''));
             otherMarkers.push({ lat: st.lat, lng: st.lng, marker });
-            if (dist <= 5) allBounds.push([st.lat, st.lng]);   // nur nahe Stationen in fitBounds
+            if (dist <= 5) allBounds.push([st.lat, st.lng]);
         });
 
-        // Competitors (red markers — wenn Koordinaten vorhanden)
+        // Competitors (red price pins)
         const compMarkers = [];
         COMPETITORS.forEach(function(c, idx) {
             if (!c.name || !c.lat || !c.lng) return;
-            const dist = c.distance_km != null
-                ? c.distance_km.toFixed(1) + ' km'
-                : formatDist(haversine(OWN_LAT, OWN_LNG, c.lat, c.lng));
             const distKm = c.distance_km != null ? c.distance_km : haversine(OWN_LAT, OWN_LNG, c.lat, c.lng);
-            const icon = makeCircleIcon('#ef4444', '#991b1b', String(idx + 1));
+            const dist   = distKm.toFixed(1) + ' km';
+            const icon = (c.price_super || c.price_diesel)
+                ? makePricePinIcon(c.price_super, c.price_diesel, '#ef4444', '#991b1b')
+                : makeCircleIcon('#ef4444', '#991b1b', String(idx + 1));
             const addr = [c.street, c.city].filter(Boolean).join(', ');
+            const priceInfo = [
+                c.price_super  ? `Super ${c.price_super.toFixed(3).replace('.',',')}` : null,
+                c.price_diesel ? `Diesel ${c.price_diesel.toFixed(3).replace('.',',')}` : null,
+            ].filter(Boolean).join(' &nbsp;·&nbsp; ');
             const marker = L.marker([c.lat, c.lng], { icon, draggable: false })
                 .addTo(map)
                 .bindPopup(
                     `<b style="color:#991b1b">${c.name}</b>` +
                     (c.brand ? ` <span style="color:#9ca3af">(${c.brand})</span>` : '') +
                     (addr ? `<br><small>${addr}</small>` : '') +
-                    `<br><small>${dist} entfernt</small>`
+                    `<br><small>${dist} entfernt</small>` +
+                    (priceInfo ? `<br><small style="color:#ef4444;">${priceInfo}</small>` : '')
                 );
             compMarkers.push({ idx, lat: c.lat, lng: c.lng, marker });
-            if (distKm <= 5) allBounds.push([c.lat, c.lng]);   // nur nahe Wettbewerber in fitBounds
+            if (distKm <= 5) allBounds.push([c.lat, c.lng]);
         });
 
         // Karte zentrieren: fitBounds nur wenn nahe Marker vorhanden, sonst einfach Hauptstation
