@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\Station;
+use App\Models\StationFuelPrice;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -10,6 +12,99 @@ class BenzinpreisService
 {
     private const BASE_URL   = 'https://www.benzinpreis-aktuell.de/';
     private const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+    public function __construct(private ?BenzinpreisParser $parser = null)
+    {
+        $this->parser ??= new BenzinpreisParser();
+    }
+
+    /**
+     * Fetch current prices for a station via BenzinpreisParser and persist them.
+     * Returns the new StationFuelPrice record, or null if no prices could be retrieved.
+     */
+    public function fetchAndStore(Station $station): ?StationFuelPrice
+    {
+        $prices = null;
+
+        if ($station->benzinpreis_hash) {
+            // Try JSON API first (fastest) — needs mts_uuid from station page
+            $stationData = $this->parser->fetchStation(
+                $station->benzinpreis_hash,
+                $station->benzinpreis_slug ?? ''
+            );
+
+            if ($stationData && $stationData['mts_uuid']) {
+                $apiPrices = $this->parser->fetchPriceByApi($stationData['mts_uuid']);
+                if ($apiPrices) {
+                    $prices = [
+                        'e5'     => $apiPrices['e5'],
+                        'e10'    => $apiPrices['e10'],
+                        'diesel' => $apiPrices['diesel'],
+                        'source' => 'api',
+                    ];
+                }
+            }
+
+            // Fallback: scrape HTML prices from already-fetched station data
+            if (! $prices && $stationData && ! empty($stationData['prices'])) {
+                $p      = $stationData['prices'];
+                $prices = [
+                    'e5'     => isset($p['benzin']) ? (float) $p['benzin'] : (isset($p['e5'])     ? (float) $p['e5']     : null),
+                    'e10'    => isset($p['e10'])     ? (float) $p['e10']   : null,
+                    'diesel' => isset($p['diesel'])  ? (float) $p['diesel'] : null,
+                    'source' => 'scraper',
+                ];
+            }
+        }
+
+        if (! $prices || (! $prices['e5'] && ! $prices['diesel'])) {
+            return null;
+        }
+
+        // ── Price-Change Detection ─────────────────────────────────────────
+        // Only persist a new record when at least one price actually changed.
+        $lastPrice = StationFuelPrice::where('station_id', $station->id)
+            ->latest('recorded_at')
+            ->first();
+
+        if ($lastPrice) {
+            $hasChanged = false;
+            foreach (['e5', 'e10', 'diesel'] as $fuel) {
+                $oldVal = round((float) ($lastPrice->{$fuel} ?? 0), 3);
+                $newVal = round((float) ($prices[$fuel] ?? 0), 3);
+                if ($newVal > 0 && abs($oldVal - $newVal) > 0.0001) {
+                    $hasChanged = true;
+                    break;
+                }
+            }
+
+            if (! $hasChanged) {
+                // Touch timestamp so we know we checked, but skip the insert
+                $station->updateQuietly(['prices_updated_at' => now()]);
+                return null; // null = "no change" (not an error)
+            }
+        }
+
+        $record = StationFuelPrice::create([
+            'station_id'  => $station->id,
+            'e5'          => $prices['e5'] ?? null,
+            'e10'         => $prices['e10'] ?? null,
+            'diesel'      => $prices['diesel'] ?? null,
+            'lpg'         => $prices['lpg'] ?? null,
+            'source'      => $prices['source'],
+            'recorded_at' => now(),
+        ]);
+
+        // Keep station's current prices in sync
+        $station->update([
+            'price_super'        => $prices['e5']     ?? $station->price_super,
+            'price_e10'          => $prices['e10']    ?? $station->price_e10,
+            'price_diesel'       => $prices['diesel'] ?? $station->price_diesel,
+            'prices_updated_at'  => now(),
+        ]);
+
+        return $record;
+    }
 
     /**
      * Sucht Tankstellen im Umkreis einer PLZ.
@@ -79,6 +174,128 @@ class BenzinpreisService
                 return null;
             }
         });
+    }
+
+    /**
+     * Crawl outward from a station's benzinpreis page to discover nearby competitor stations.
+     * Level 0 = own page; Level 1 = neighbors of own page (~10km); Level 2 = their neighbors (~20km).
+     *
+     * @param  int  $levels    Number of crawl levels (1 = ~10km, 2 = ~20km)
+     * @param  int  $radiusKm  Hard cut-off: discard stations beyond this distance
+     * @return array<int, array{hash:string,slug:string,name:string,brand:string,street:string,city:string,zip:string,lat:?float,lng:?float,distance_km:?float}>
+     */
+    public function discoverNeighbors(Station $station, int $levels = 1, int $radiusKm = 15): array
+    {
+        if (! $station->benzinpreis_hash || ! $station->benzinpreis_slug) {
+            return [];
+        }
+
+        $ownLat   = (float) ($station->latitude ?? 0);
+        $ownLng   = (float) ($station->longitude ?? 0);
+        $seedHash = $station->benzinpreis_hash;
+        $seedSlug = $station->benzinpreis_slug;
+
+        /** @var array<string, string>  hash => slug for stations yet to crawl */
+        $toCrawl  = [$seedHash => $seedSlug];
+        /** @var array<string, bool>    hash => true for already-crawled pages */
+        $crawled  = [];
+        /** @var array<string, array{slug:string,name:string}>  all discovered hashes */
+        $found    = [];
+
+        for ($level = 0; $level <= $levels; $level++) {
+            foreach ($toCrawl as $hash => $slug) {
+                if (isset($crawled[$hash])) continue;
+                $crawled[$hash] = true;
+
+                $url  = self::BASE_URL . "preise-t{$hash}-{$slug}";
+                $html = $this->parser->fetchUrl($url, 12);
+                if (! $html) { usleep(300_000); continue; }
+
+                foreach ($this->parser->extractNeighbors($html) as $nHash => $nData) {
+                    if (! isset($found[$nHash])) {
+                        $found[$nHash] = $nData;
+                    }
+                }
+
+                usleep(400_000); // ~0.4s between requests
+            }
+
+            // Prepare next level: all not-yet-crawled discovered stations
+            if ($level < $levels) {
+                $toCrawl = [];
+                foreach ($found as $hash => $data) {
+                    if (! isset($crawled[$hash])) {
+                        $toCrawl[$hash] = $data['slug'];
+                    }
+                }
+            }
+        }
+
+        // Remove own station from results
+        unset($found[$seedHash]);
+
+        // Fetch details + apply distance filter
+        $result = [];
+
+        foreach ($found as $hash => $info) {
+            $slug    = $info['slug'];
+            $details = $this->fetchStationDetails($hash, $slug);
+
+            $street = trim(($details['street'] ?? '') . ' ' . ($details['house_number'] ?? ''));
+            $city   = $details['city'] ?? '';
+            $zip    = $details['zip'] ?? '';
+
+            // Prefer Nominatim geocoding over benzinpreis meta-coords (BP lat/lng are often wrong)
+            $lat = null;
+            $lng = null;
+
+            if ($street && $city) {
+                $geoCoords = $this->geocodeAddress($street, $city, $zip);
+                if ($geoCoords) {
+                    [$lat, $lng] = $geoCoords;
+                    usleep(1_100_000); // Nominatim rate-limit: max 1 req/s
+                }
+            }
+
+            // Fallback: use benzinpreis meta-coords
+            if (! $lat && ! $lng) {
+                $lat = $details['lat'] ?? null;
+                $lng = $details['lng'] ?? null;
+            }
+
+            $distKm = null;
+
+            if ($lat && $lng && $ownLat && $ownLng) {
+                $dLat   = deg2rad($lat - $ownLat);
+                $dLng   = deg2rad($lng - $ownLng);
+                $a      = sin($dLat / 2) ** 2 + cos(deg2rad($ownLat)) * cos(deg2rad($lat)) * sin($dLng / 2) ** 2;
+                $distKm = round(6371 * 2 * atan2(sqrt($a), sqrt(1 - $a)), 1);
+
+                if ($distKm > $radiusKm) {
+                    usleep(200_000);
+                    continue;
+                }
+            }
+
+            $result[] = [
+                'hash'        => $hash,
+                'slug'        => $slug,
+                'name'        => $details['name'] ?? ($info['name'] ?: $slug),
+                'brand'       => $details['brand'] ?? '',
+                'street'      => $street,
+                'city'        => $city,
+                'zip'         => $zip,
+                'lat'         => $lat,
+                'lng'         => $lng,
+                'distance_km' => $distKm,
+            ];
+
+            usleep(400_000);
+        }
+
+        usort($result, fn ($a, $b) => ($a['distance_km'] ?? 999) <=> ($b['distance_km'] ?? 999));
+
+        return $result;
     }
 
     private function resolvePlace(string $plz): ?array
@@ -343,6 +560,39 @@ class BenzinpreisService
         }
 
         return $result;
+    }
+
+    /**
+     * Geocode a street address via Nominatim.
+     * Returns [lat, lng] or null on failure.
+     *
+     * @return array{float, float}|null
+     */
+    public function geocodeAddress(string $street, string $city, string $zip = ''): ?array
+    {
+        $query = trim($street . ', ' . ($zip ? $zip . ' ' : '') . $city . ', Deutschland');
+
+        try {
+            $response = Http::withoutVerifying()->timeout(5)
+                ->withUserAgent(self::USER_AGENT)
+                ->withHeaders(['Accept-Language' => 'de-DE,de;q=0.9'])
+                ->get('https://nominatim.openstreetmap.org/search', [
+                    'q'            => $query,
+                    'format'       => 'json',
+                    'limit'        => 1,
+                    'countrycodes' => 'de',
+                ]);
+
+            $results = $response->json() ?? [];
+
+            if (! empty($results[0]['lat'])) {
+                return [round((float) $results[0]['lat'], 8), round((float) $results[0]['lon'], 8)];
+            }
+        } catch (\Exception $e) {
+            Log::warning("BenzinpreisService: Geocoding-Fehler für '{$query}': " . $e->getMessage());
+        }
+
+        return null;
     }
 
     private function cityToSlug(string $city): string
