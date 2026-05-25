@@ -39,6 +39,9 @@ class MeinProfil extends Page
         return auth()->user()?->isEmployee() ?? false;
     }
 
+    // Livewire-State-Container für das Form
+    public array $data = [];
+
     // ─── Mount ──────────────────────────────────────────────────────────────
 
     public function mount(): void
@@ -75,7 +78,9 @@ class MeinProfil extends Page
 
     public function form(Schema $schema): Schema
     {
-        return $schema->components([
+        return $schema
+            ->statePath('data')
+            ->components([
 
             Tabs::make('Profil')
                 ->tabs([
@@ -278,11 +283,10 @@ class MeinProfil extends Page
 
     public function changePassword(): void
     {
-        $state   = $this->form->getRawState();
         $user    = auth()->user();
-        $current = $state['current_password'] ?? '';
-        $new     = $state['new_password']     ?? '';
-        $confirm = $state['new_password_confirmation'] ?? '';
+        $current = $this->data['current_password'] ?? '';
+        $new     = $this->data['new_password']     ?? '';
+        $confirm = $this->data['new_password_confirmation'] ?? '';
 
         if (! Hash::check($current, $user->password)) {
             Notification::make()->title('Das aktuelle Passwort ist falsch.')->danger()->send();
