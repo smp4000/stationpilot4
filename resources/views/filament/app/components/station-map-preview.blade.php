@@ -269,43 +269,62 @@
         });
     }
 
-    /** Pin with up to 2 price lines + triangle pointer */
-    function makePricePinIcon(superPrice, dieselPrice, color, border) {
+    /** Badge-style price pin — matches the sidebar price chips */
+    function makePricePinIcon(superPrice, e10Price, dieselPrice) {
         const fmt = v => v ? v.toFixed(3).replace('.', ',') : null;
-        const lines = [];
-        if (superPrice) lines.push({ label: 'S', val: fmt(superPrice), color: '#bfdbfe' });
-        if (dieselPrice) lines.push({ label: 'D', val: fmt(dieselPrice), color: '#fef08a' });
 
-        if (!lines.length) return makeCircleIcon(color, border, '?');
+        const badges = [];
+        if (superPrice)  badges.push(`<span style="background:#dcfce7;color:#166534;border-radius:4px;padding:1px 5px;font-size:10px;font-weight:600;white-space:nowrap;">Super ${fmt(superPrice)}</span>`);
+        if (e10Price)    badges.push(`<span style="background:#e0f2fe;color:#0369a1;border-radius:4px;padding:1px 5px;font-size:10px;font-weight:600;white-space:nowrap;">E10 ${fmt(e10Price)}</span>`);
+        if (dieselPrice) badges.push(`<span style="background:#fef9c3;color:#854d0e;border-radius:4px;padding:1px 5px;font-size:10px;font-weight:600;white-space:nowrap;">DK ${fmt(dieselPrice)}</span>`);
 
-        const W = 88, ROW = 18, PAD = 8, ARR = 9;
-        const H = lines.length * ROW + PAD;
-        const totalH = H + ARR;
+        if (!badges.length) return null;
 
-        const textRows = lines.map((l, i) => {
-            const y = PAD/2 + ROW * i + 13;
-            return `<text x="8" y="${y}" font-size="10" fill="rgba(255,255,255,.7)" font-family="sans-serif">${l.label}</text>`
-                 + `<text x="${W-6}" y="${y}" text-anchor="end" font-size="11" font-weight="bold" fill="#fff" font-family="sans-serif">${l.val}</text>`;
-        }).join('');
+        const html = `
+            <div style="
+                position:relative;
+                background:#fff;
+                border:1px solid #d1d5db;
+                border-radius:6px;
+                padding:3px 5px;
+                display:inline-flex;
+                gap:3px;
+                box-shadow:0 2px 6px rgba(0,0,0,.18);
+                white-space:nowrap;
+            ">
+                ${badges.join('')}
+                <div style="
+                    position:absolute;
+                    bottom:-7px;
+                    left:50%;
+                    transform:translateX(-50%);
+                    width:0;height:0;
+                    border-left:6px solid transparent;
+                    border-right:6px solid transparent;
+                    border-top:7px solid #d1d5db;
+                "></div>
+                <div style="
+                    position:absolute;
+                    bottom:-6px;
+                    left:50%;
+                    transform:translateX(-50%);
+                    width:0;height:0;
+                    border-left:5px solid transparent;
+                    border-right:5px solid transparent;
+                    border-top:6px solid #fff;
+                "></div>
+            </div>`;
 
-        // Divider line between rows
-        const divider = lines.length > 1
-            ? `<line x1="4" y1="${PAD/2 + ROW}" x2="${W-4}" y2="${PAD/2 + ROW}" stroke="rgba(255,255,255,.25)" stroke-width="1"/>`
-            : '';
-
-        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${totalH}" viewBox="0 0 ${W} ${totalH}">
-            <rect x="1" y="1" width="${W-2}" height="${H-2}" rx="5" fill="${color}" stroke="${border}" stroke-width="1.5" opacity=".97"/>
-            ${divider}
-            ${textRows}
-            <polygon points="${W/2-6},${H} ${W/2+6},${H} ${W/2},${totalH}" fill="${color}" stroke="${border}" stroke-width="1" stroke-linejoin="round"/>
-        </svg>`;
+        // Estimate width: ~58px per badge
+        const estW = badges.length * 62 + 10;
+        const estH = 28;
 
         return L.divIcon({
-            html: svg,
+            html,
             className: '',
-            iconSize: [W, totalH],
-            iconAnchor: [W/2, totalH],
-            popupAnchor: [0, -(totalH + 4)],
+            iconSize:   [estW, estH + 7],
+            iconAnchor: [estW / 2, estH + 7],
+            popupAnchor:[0, -(estH + 12)],
         });
     }
 
@@ -329,12 +348,12 @@
             maxZoom: 19,
         }).addTo(map);
 
-        // Own station marker (blue price pin)
+        // Own station marker (badge price pin)
         const OWN_SUPER  = {{ $priceSuper  ? (float)$priceSuper  : 'null' }};
+        const OWN_E10    = {{ $priceE10    ? (float)$priceE10    : 'null' }};
         const OWN_DIESEL = {{ $priceDiesel ? (float)$priceDiesel : 'null' }};
-        const ownIcon = (OWN_SUPER || OWN_DIESEL)
-            ? makePricePinIcon(OWN_SUPER, OWN_DIESEL, '#2563eb', '#1e40af')
-            : makeCircleIcon('#2563eb', '#1e40af', '★');
+        const _ownPriceIcon = makePricePinIcon(OWN_SUPER, OWN_E10, OWN_DIESEL);
+        const ownIcon = _ownPriceIcon || makeCircleIcon('#2563eb', '#1e40af', '★');
         const ownMarker = L.marker([OWN_LAT, OWN_LNG], { icon: ownIcon, draggable: false })
             .addTo(map)
             .bindPopup(`<b>${OWN_NAME}</b><br>Diese Station`);
@@ -367,9 +386,8 @@
         OTHER_STATIONS.forEach(function(st) {
             if (!st.lat || !st.lng) return;
             const dist = haversine(OWN_LAT, OWN_LNG, st.lat, st.lng);
-            const icon = (st.price_super || st.price_diesel)
-                ? makePricePinIcon(st.price_super, st.price_diesel, '#f97316', '#c2410c')
-                : makeCircleIcon('#f97316', '#c2410c', '●');
+            const _stIcon = makePricePinIcon(st.price_super, st.price_e10, st.price_diesel);
+            const icon = _stIcon || makeCircleIcon('#f97316', '#c2410c', '●');
             const priceInfo = [
                 st.price_super  ? `Super ${st.price_super.toFixed(3).replace('.',',')}` : null,
                 st.price_diesel ? `Diesel ${st.price_diesel.toFixed(3).replace('.',',')}` : null,
@@ -388,9 +406,8 @@
             if (!c.name || !c.lat || !c.lng) return;
             const distKm = c.distance_km != null ? c.distance_km : haversine(OWN_LAT, OWN_LNG, c.lat, c.lng);
             const dist   = distKm.toFixed(1) + ' km';
-            const icon = (c.price_super || c.price_diesel)
-                ? makePricePinIcon(c.price_super, c.price_diesel, '#ef4444', '#991b1b')
-                : makeCircleIcon('#ef4444', '#991b1b', String(idx + 1));
+            const _cIcon = makePricePinIcon(c.price_super, c.price_e10, c.price_diesel);
+            const icon = _cIcon || makeCircleIcon('#ef4444', '#991b1b', String(idx + 1));
             const addr = [c.street, c.city].filter(Boolean).join(', ');
             const priceInfo = [
                 c.price_super  ? `Super ${c.price_super.toFixed(3).replace('.',',')}` : null,
