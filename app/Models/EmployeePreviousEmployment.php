@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class EmployeePreviousEmployment extends Model
 {
+    protected $table = 'employee_previous_employment';
+
     protected $fillable = [
         'employee_id', 'employer_name',
         'employed_from', 'employed_until',

@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class EmployeeAccessLog extends Model
 {
+    protected $table = 'employee_access_log';
+
     public $timestamps = false;
 
     protected $fillable = [
