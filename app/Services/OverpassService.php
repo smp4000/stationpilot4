@@ -7,42 +7,54 @@ use Illuminate\Support\Facades\Log;
 
 /**
  * Sucht Tankstellen (amenity=fuel) über die OpenStreetMap Overpass API.
- * Liefert exakte OSM-Koordinaten des Gebäude-Mittelpunkts.
+ * Liefert exakte OSM-Koordinaten und reichert fehlende Adressen via Nominatim an.
  */
 class OverpassService
 {
-    private const OVERPASS_ENDPOINT = 'https://overpass-api.de/api/interpreter';
+    private const OVERPASS_ENDPOINT  = 'https://overpass-api.de/api/interpreter';
     private const NOMINATIM_ENDPOINT = 'https://nominatim.openstreetmap.org/search';
-    private const USER_AGENT = 'Stationpilot/4.0 (contact@stationpilot.de)';
-    private const TIMEOUT = 15;
+    private const NOMINATIM_LOOKUP   = 'https://nominatim.openstreetmap.org/lookup';
+    private const USER_AGENT         = 'Stationpilot/4.0 (contact@stationpilot.de)';
+    private const TIMEOUT            = 15;
 
     /**
      * Sucht Tankstellen im Umkreis einer PLZ.
-     * Strategie 1: PLZ-Boundary-Suche via Overpass
-     * Strategie 2: Nominatim-Mittelpunkt + Radius-Suche (Fallback)
+     * Strategie: PLZ-Mittelpunkt (Nominatim) + Radius-Suche (20 km).
+     * Zusätzlich PLZ-Boundary-Suche — beide Ergebnisse werden zusammengeführt.
+     * Anschließend werden fehlende Adressen via Nominatim Lookup angereichert.
      *
-     * @return array<int, array{osm_id: int, name: string, brand: string|null, lat: float, lng: float, street: string, house_number: string, zip: string, city: string}>
+     * @return array<int, array{osm_id: int, osm_type: string, name: string, brand: string|null, lat: float, lng: float, street: string, house_number: string, zip: string, city: string}>
      */
-    public function searchFuelStationsByZip(string $zip, int $radius = 8000): array
+    public function searchFuelStationsByZip(string $zip, int $radius = 15000): array
     {
         if (! preg_match('/^\d{5}$/', $zip)) {
             return [];
         }
 
-        // Strategie 1: PLZ-Boundary-Suche
-        $results = $this->searchByPlzBoundary($zip);
+        // PLZ-Mittelpunkt via Nominatim ermitteln, dann Radius-Suche via Overpass.
+        // Die PLZ-Boundary-Suche via Overpass wird nicht mehr verwendet,
+        // da sie häufig in 504-Timeouts läuft.
+        $center = $this->resolvePlzCenter($zip);
 
-        // Strategie 2: Fallback via Nominatim-Mittelpunkt + Radius
-        if (empty($results)) {
-            $center = $this->resolvePlzCenter($zip);
-            if ($center) {
-                $results = $this->searchByRadius($center['lat'], $center['lng'], $radius);
-            }
+        if (! $center) {
+            Log::warning('OverpassService: PLZ-Mittelpunkt nicht gefunden', ['zip' => $zip]);
+            return [];
         }
 
-        usort($results, fn ($a, $b) => strcmp($a['name'], $b['name']));
+        $results = $this->searchByRadius($center['lat'], $center['lng'], $radius);
 
-        return $results;
+        if (empty($results)) {
+            return [];
+        }
+
+        // Fehlende Adressen via Nominatim Lookup anreichern
+        $enriched = $this->enrichAddresses(array_values(
+            collect($results)->keyBy('osm_id')->toArray()
+        ));
+
+        usort($enriched, fn ($a, $b) => strcmp($a['name'], $b['name']));
+
+        return $enriched;
     }
 
     /**
@@ -57,24 +69,8 @@ class OverpassService
     // Private Methoden
     // ─────────────────────────────────────────────
 
-    private function searchByPlzBoundary(string $zip): array
-    {
-        $query = <<<OVERPASS
-[out:json][timeout:15];
-area["postal_code"="{$zip}"]["boundary"="postal_code"];
-(
-  node["amenity"="fuel"](area);
-  way["amenity"="fuel"](area);
-);
-out center;
-OVERPASS;
-
-        return $this->runQuery($query, "PLZ:{$zip}");
-    }
-
     private function searchByRadius(float $lat, float $lng, int $radius): array
     {
-        // number_format erzwingt Punkt als Dezimaltrennzeichen (locale-unabhängig)
         $latF = number_format($lat, 8, '.', '');
         $lngF = number_format($lng, 8, '.', '');
 
@@ -95,6 +91,7 @@ OVERPASS;
         try {
             $response = Http::withHeaders(['User-Agent' => self::USER_AGENT])
                 ->timeout(self::TIMEOUT)
+                ->asForm()
                 ->post(self::OVERPASS_ENDPOINT, ['data' => $query]);
 
             if (! $response->successful()) {
@@ -152,6 +149,7 @@ OVERPASS;
 
             $stations[] = [
                 'osm_id'       => (int) ($el['id'] ?? 0),
+                'osm_type'     => $el['type'] ?? 'node',
                 'name'         => $name,
                 'brand'        => $tags['brand'] ?? null,
                 'lat'          => round($lat, 8),
@@ -160,9 +158,70 @@ OVERPASS;
                 'house_number' => $tags['addr:housenumber'] ?? '',
                 'zip'          => $tags['addr:postcode'] ?? '',
                 'city'         => $tags['addr:city'] ?? $tags['addr:suburb'] ?? '',
+                'opening_hours'=> $tags['opening_hours'] ?? null,
             ];
         }
 
         return $stations;
+    }
+
+    /**
+     * Reichert Stationen ohne Adresse via Nominatim Lookup an.
+     * Nominatim akzeptiert mehrere IDs in einem Request: ?osm_ids=N123,W456
+     */
+    private function enrichAddresses(array $stations): array
+    {
+        $missing = array_filter($stations, fn ($s) => empty($s['street']) && empty($s['city']));
+
+        if (empty($missing)) {
+            return $stations;
+        }
+
+        // OSM-IDs formatieren: N für node, W für way, R für relation
+        $typeMap = ['node' => 'N', 'way' => 'W', 'relation' => 'R'];
+        $ids = collect($missing)
+            ->map(fn ($s) => ($typeMap[$s['osm_type']] ?? 'N') . $s['osm_id'])
+            ->implode(',');
+
+        try {
+            $response = Http::withHeaders(['User-Agent' => self::USER_AGENT])
+                ->timeout(10)
+                ->get(self::NOMINATIM_LOOKUP, [
+                    'osm_ids'          => $ids,
+                    'format'           => 'json',
+                    'addressdetails'   => 1,
+                ]);
+
+            if (! $response->successful()) {
+                return $stations;
+            }
+
+            // Lookup-Ergebnisse indexiert nach osm_id
+            $lookup = collect($response->json())->keyBy('osm_id');
+        } catch (\Throwable $e) {
+            Log::warning('OverpassService: Nominatim-Lookup fehlgeschlagen', ['error' => $e->getMessage()]);
+            return $stations;
+        }
+
+        // Adressen einsetzen
+        return array_map(function ($s) use ($lookup) {
+            if (! empty($s['street']) || ! empty($s['city'])) {
+                return $s; // bereits vollständig
+            }
+
+            $info = $lookup->get($s['osm_id']);
+            if (! $info) {
+                return $s;
+            }
+
+            $addr = $info['address'] ?? [];
+
+            $s['street']       = $addr['road'] ?? $addr['pedestrian'] ?? $addr['footway'] ?? $s['street'];
+            $s['house_number'] = $addr['house_number'] ?? $s['house_number'];
+            $s['zip']          = $addr['postcode'] ?? $s['zip'];
+            $s['city']         = $addr['city'] ?? $addr['town'] ?? $addr['village'] ?? $addr['suburb'] ?? $s['city'];
+
+            return $s;
+        }, $stations);
     }
 }

@@ -20,6 +20,8 @@ class DatabaseSeeder extends Seeder
             TestUserSeeder::class,
             RolesAndPermissionsSeeder::class,
             RoleAssignmentSeeder::class,
+            BrandSeeder::class,    // Marken müssen vor Stationen existieren
+            FuelTypeSeeder::class, // Kraftstoffsorten müssen vor Stationen existieren
             StationSeeder::class,
         ]);
     }

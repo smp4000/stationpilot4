@@ -4,13 +4,20 @@
         @php $stations = $this->getStations(); @endphp
 
         @if($stations->isEmpty())
-            <div class="flex items-center justify-center h-32 text-gray-400">
-                <div class="text-center">
-                    <x-heroicon-o-map-pin class="w-8 h-8 mx-auto mb-2 opacity-40"/>
-                    <p class="text-sm">Noch keine Stationen mit Koordinaten vorhanden.</p>
+            <div style="display:flex;align-items:center;justify-content:center;height:8rem;color:#9ca3af;">
+                <div style="text-align:center;">
+                    <svg style="width:2rem;height:2rem;margin:0 auto 0.5rem;opacity:.4;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/>
+                    </svg>
+                    <p style="font-size:.875rem;">Noch keine Stationen mit Koordinaten vorhanden.</p>
                 </div>
             </div>
         @else
+            {{-- position:relative + z-index:0 erzeugt einen eigenen Stacking-Context,
+                 sodass Leaflet-Panes (z-index 200–700) darin eingeschlossen bleiben
+                 und Filament-Modals (z-index ~50 auf Root-Ebene) darüber erscheinen. --}}
+            <div style="position:relative;z-index:0;">
             <div wire:ignore x-data x-init="
                 const stations = {{ json_encode($stations) }};
                 const waitL = () => {
@@ -46,6 +53,7 @@
                 waitL();
             ">
                 <div x-ref="mapEl" style="height:400px;border-radius:8px;"></div>
+            </div>
             </div>
         @endif
     </x-filament::section>

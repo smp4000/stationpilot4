@@ -9,3 +9,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('benzinpreis:check --quiet')->dailyAt('07:00');
+Schedule::command('stations:fetch-prices')->dailyAt('06:00');

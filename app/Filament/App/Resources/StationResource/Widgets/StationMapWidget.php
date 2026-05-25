@@ -13,9 +13,15 @@ class StationMapWidget extends Widget
 
     public function getStations(): \Illuminate\Support\Collection
     {
-        return Station::where('is_active', true)
-            ->whereNotNull('lat')
-            ->whereNotNull('lng')
-            ->get(['id', 'ulid', 'name', 'brand', 'street', 'house_number', 'zip', 'city', 'lat', 'lng']);
+        return Station::with('brand')
+            ->where('is_active', true)
+            ->whereNotNull('latitude')
+            ->whereNotNull('longitude')
+            ->get(['id', 'ulid', 'brand_id', 'name', 'street', 'house_number', 'zip', 'city', 'latitude', 'longitude'])
+            ->map(fn ($s) => array_merge($s->toArray(), [
+                'brand' => $s->brand?->name,
+                'lat'   => $s->latitude,
+                'lng'   => $s->longitude,
+            ]));
     }
 }

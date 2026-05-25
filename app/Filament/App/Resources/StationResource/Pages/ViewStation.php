@@ -3,6 +3,8 @@
 namespace App\Filament\App\Resources\StationResource\Pages;
 
 use App\Filament\App\Resources\StationResource;
+use App\Filament\App\Resources\StationResource\RelationManagers\CompetitorsRelationManager;
+use App\Filament\App\Resources\StationResource\RelationManagers\FuelPricesRelationManager;
 use Filament\Actions\EditAction;
 use Filament\Resources\Pages\ViewRecord;
 
@@ -15,6 +17,14 @@ class ViewStation extends ViewRecord
         return [
             EditAction::make()
                 ->visible(fn() => auth()->user()?->can('partner.stations.edit')),
+        ];
+    }
+
+    public function getRelationManagers(): array
+    {
+        return [
+            CompetitorsRelationManager::class,
+            FuelPricesRelationManager::class,
         ];
     }
 }
