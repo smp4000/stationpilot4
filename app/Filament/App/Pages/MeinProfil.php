@@ -162,8 +162,12 @@ class MeinProfil extends Page
                         ->schema([
                             Section::make()
                                 ->schema([
+                                    \Filament\Schemas\Components\View::make('filament.app.components.passwort-hinweis')
+                                        ->viewData(['mustChange' => auth()->user()?->must_change_password]),
+
                                     TextInput::make('current_password')
                                         ->label('Aktuelles Passwort')
+                                        ->helperText('Geben Sie das per E-Mail erhaltene temporäre Passwort ein.')
                                         ->password()
                                         ->revealable()
                                         ->required()
