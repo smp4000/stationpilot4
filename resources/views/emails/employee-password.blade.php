@@ -35,7 +35,7 @@
                 <td style="background:linear-gradient(135deg,#1e3a8a 0%,#2563eb 100%);padding:40px 40px 36px;text-align:center;">
                   <div style="width:64px;height:64px;background:rgba(255,255,255,0.15);border-radius:50%;margin:0 auto 16px;display:inline-block;line-height:64px;font-size:28px;">&#128274;</div>
                   <h1 style="color:#ffffff;margin:0 0 6px;font-size:24px;font-weight:700;">Ihr Zugang zu StationPilot</h1>
-                  <p style="color:#bfdbfe;margin:0;font-size:14px;">Mitarbeiter-Portal</p>
+                  <p style="color:#bfdbfe;margin:0;font-size:14px;">StationPilot App-Panel</p>
                 </td>
               </tr>
             </table>
@@ -49,7 +49,7 @@
                   <p style="margin:0 0 24px;font-size:22px;font-weight:700;color:#0f172a;">{{ $employee->first_name }} {{ $employee->last_name }}</p>
 
                   <p style="margin:0 0 24px;font-size:15px;line-height:1.7;color:#475569;">
-                    Ihr Zugang zum <strong style="color:#1e3a8a;">StationPilot Mitarbeiter-Portal</strong> wurde eingerichtet.
+                    Ihr Zugang zum <strong style="color:#1e3a8a;">StationPilot App-Panel</strong> wurde eingerichtet.
                     Mit den folgenden Zugangsdaten können Sie sich jederzeit einloggen.
                   </p>
 
@@ -63,7 +63,7 @@
                           <tr>
                             <td style="padding:6px 0;font-size:13px;color:#64748b;width:140px;">Login-Adresse:</td>
                             <td style="padding:6px 0;">
-                              <a href="{{ route('employee.portal.login') }}" style="color:#2563eb;font-size:14px;font-weight:600;text-decoration:none;">{{ route('employee.portal.login') }}</a>
+                              <a href="{{ url('/app') }}" style="color:#2563eb;font-size:14px;font-weight:600;text-decoration:none;">{{ url('/app') }}</a>
                             </td>
                           </tr>
                           <tr>
@@ -85,7 +85,7 @@
                   <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
                     <tr>
                       <td align="center">
-                        <a href="{{ route('employee.portal.login') }}"
+                        <a href="{{ url('/app') }}"
                            style="display:inline-block;background:linear-gradient(135deg,#1e3a8a 0%,#2563eb 100%);color:#ffffff;text-decoration:none;padding:16px 48px;border-radius:10px;font-size:16px;font-weight:700;letter-spacing:0.3px;box-shadow:0 4px 12px rgba(37,99,235,0.4);">
                           Jetzt einloggen &rarr;
                         </a>
