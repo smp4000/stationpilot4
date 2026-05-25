@@ -109,6 +109,14 @@ class FuelPricesRelationManager extends RelationManager
                     ->dateTime('d.m.Y H:i')
                     ->sortable(),
 
+                TextColumn::make('station.name')
+                    ->label('Tankstelle')
+                    ->description(fn ($record) => collect([
+                        $record->station?->street,
+                        trim(($record->station?->zip ?? '') . ' ' . ($record->station?->city ?? '')),
+                    ])->filter()->implode(', '))
+                    ->weight('medium'),
+
                 TextColumn::make('e5')
                     ->label('E5')
                     ->formatStateUsing(fn ($state) => $state ? number_format((float) $state, 3, ',', '.') . ' €' : '–'),
