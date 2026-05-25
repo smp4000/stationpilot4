@@ -310,9 +310,20 @@ class StationResource extends Resource
                     Placeholder::make('_salutation')
                         ->label('Anrede Anschrift')
                         ->content(function (Get $get) {
-                            $name    = $get('name') ?? '';
+                            $brandId = $get('brand_id');
+                            $brand   = $brandId ? (\App\Models\Brand::find($brandId)?->name ?? '') : '';
                             $contact = trim(($get('contact_first_name') ?? '') . ' ' . ($get('contact_last_name') ?? ''));
-                            return new HtmlString('<span style="font-size:14px;color:#374151;">' . e($name . ($contact ? ' ' . $contact : '')) . '</span>');
+                            $city    = $get('city') ?? '';
+
+                            $parts = array_filter([
+                                $brand ? $brand . ' Tankstelle' : null,
+                                $contact ?: null,
+                                $city ?: null,
+                            ]);
+
+                            $text = implode(' ', $parts) ?: ($get('name') ?? '');
+
+                            return new HtmlString('<span style="font-size:14px;color:#374151;font-weight:500;">' . e($text) . '</span>');
                         })->columnSpanFull(),
                 ]),
 
