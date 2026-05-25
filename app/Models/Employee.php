@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -47,7 +48,8 @@ class Employee extends Model
         'residence_permit_type', 'residence_permit_expires',
         'work_permit_granted', 'work_permit_expires',
         // System
-        'mde_pin', 'invitation_token', 'invited_at', 'invitation_expires_at', 'status',
+        'mde_pin', 'password', 'must_change_password',
+        'invitation_token', 'invited_at', 'invitation_expires_at', 'status',
         // DSGVO
         'data_verified_at', 'retention_delete_after', 'anonymized_at',
     ];
@@ -84,6 +86,7 @@ class Employee extends Model
         'invitation_expires_at'    => 'datetime',
         'data_verified_at'         => 'datetime',
         'anonymized_at'            => 'datetime',
+        'must_change_password'     => 'boolean',
         'tax_class'                => 'integer',
         'disability_degree'        => 'integer',
         'vacation_days'            => 'integer',
@@ -237,6 +240,13 @@ class Employee extends Model
     public function station(): BelongsTo
     {
         return $this->belongsTo(Station::class);
+    }
+
+    public function stations(): BelongsToMany
+    {
+        return $this->belongsToMany(Station::class, 'employee_station', 'employee_id', 'station_id')
+                    ->withPivot('is_primary')
+                    ->orderBy('name');
     }
 
     public function user(): BelongsTo

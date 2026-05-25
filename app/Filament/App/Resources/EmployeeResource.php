@@ -4,6 +4,7 @@ namespace App\Filament\App\Resources;
 
 use App\Filament\App\Resources\EmployeeResource\Pages;
 use App\Mail\EmployeeInvitationMail;
+use App\Mail\EmployeePasswordMail;
 use App\Models\Employee;
 use App\Models\EmployeeAccessLog;
 use App\Models\Station;
@@ -165,7 +166,7 @@ class EmployeeResource extends Resource
                     ->schema([
                         Grid::make(2)->schema([
                             Select::make('station_id')
-                                ->label('Station')
+                                ->label('Primärstation')
                                 ->options(fn (): array => Station::where('tenant_id', session('tenant_id'))
                                     ->orderBy('name')
                                     ->pluck('name', 'id')
@@ -206,6 +207,14 @@ class EmployeeResource extends Resource
                                 ->label('Kostenstelle')
                                 ->maxLength(50),
                         ]),
+                        CheckboxList::make('stations')
+                            ->label('Weitere Stationen')
+                            ->relationship('stations', 'name')
+                            ->options(fn (): array => \App\Models\Station::where('tenant_id', session('tenant_id'))
+                                ->orderBy('name')
+                                ->pluck('name', 'id')
+                                ->toArray())
+                            ->helperText('Primärstation wird oben gesetzt. Hier weitere Einsatzorte wählen.'),
                     ]),
 
                 // ── Tab 4: Steuer & Soziales ───────────────────────────────
@@ -485,7 +494,9 @@ class EmployeeResource extends Resource
                             ->revealable()
                             ->minLength(4)
                             ->maxLength(6)
-                            ->helperText('4–6 Stellen. Wird verschlüsselt gespeichert.'),
+                            ->formatStateUsing(fn () => null)   // Bcrypt-Hash nie anzeigen
+                            ->dehydrated(fn ($state) => filled($state)) // Nur speichern wenn befüllt
+                            ->helperText('4–6 Stellen. Leer lassen = nicht ändern. Wird verschlüsselt gespeichert.'),
                         Select::make('status')
                             ->label('Status')
                             ->options([
@@ -596,6 +607,28 @@ class EmployeeResource extends Resource
             ->actions([
                 ViewAction::make(),
                 EditAction::make(),
+                Action::make('passwort_senden')
+                    ->label('Passwort senden')
+                    ->icon('heroicon-o-lock-closed')
+                    ->color('warning')
+                    ->visible(fn ($record): bool => !empty($record->email))
+                    ->requiresConfirmation()
+                    ->modalHeading('Neues Passwort zusenden?')
+                    ->modalDescription(fn ($record) => 'Ein zufälliges Passwort wird an ' . $record->email . ' gesendet. Das aktuelle Passwort wird überschrieben.')
+                    ->modalSubmitActionLabel('Passwort senden')
+                    ->action(function ($record): void {
+                        $plain = \Illuminate\Support\Str::random(10);
+                        $record->password             = \Illuminate\Support\Facades\Hash::make($plain);
+                        $record->must_change_password = true;
+                        $record->save();
+                        \Illuminate\Support\Facades\Mail::to($record->email)
+                            ->send(new EmployeePasswordMail($record, $plain));
+                        \Filament\Notifications\Notification::make()
+                            ->title('Passwort gesendet')
+                            ->body('Ein temporäres Passwort wurde an ' . $record->email . ' verschickt.')
+                            ->success()
+                            ->send();
+                    }),
                 Action::make('einladen')
                     ->label('Einladen')
                     ->icon('heroicon-o-envelope')
