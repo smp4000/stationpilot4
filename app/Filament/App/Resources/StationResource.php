@@ -212,7 +212,9 @@ class StationResource extends Resource
 
                     TextInput::make('station_number')
                         ->label('Stationsnummer')
-                        ->maxLength(50)->nullable(),
+                        ->maxLength(50)
+                        ->required(fn (Get $get): bool => (int) $get('brand_id') === 1) // Pflicht bei Aral
+                        ->nullable(),
 
                     Toggle::make('is_active')
                         ->label('Station aktiv')
