@@ -269,6 +269,16 @@
         });
     }
 
+    /** Inline price badges HTML for use inside popups */
+    function priceBadgesHtml(superPrice, e10Price, dieselPrice) {
+        const fmt = v => v ? v.toFixed(3).replace('.', ',') : null;
+        const parts = [];
+        if (superPrice)  parts.push(`<span style="background:#dcfce7;color:#166534;border-radius:4px;padding:1px 6px;font-size:11px;font-weight:600;">Super ${fmt(superPrice)}</span>`);
+        if (e10Price)    parts.push(`<span style="background:#e0f2fe;color:#0369a1;border-radius:4px;padding:1px 6px;font-size:11px;font-weight:600;">E10 ${fmt(e10Price)}</span>`);
+        if (dieselPrice) parts.push(`<span style="background:#fef9c3;color:#854d0e;border-radius:4px;padding:1px 6px;font-size:11px;font-weight:600;">DK ${fmt(dieselPrice)}</span>`);
+        return parts.length ? `<div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap;">${parts.join('')}</div>` : '';
+    }
+
     /** Badge-style price pin — matches the sidebar price chips */
     function makePricePinIcon(superPrice, e10Price, dieselPrice) {
         const fmt = v => v ? v.toFixed(3).replace('.', ',') : null;
@@ -356,7 +366,7 @@
         const ownIcon = _ownPriceIcon || makeCircleIcon('#2563eb', '#1e40af', '★');
         const ownMarker = L.marker([OWN_LAT, OWN_LNG], { icon: ownIcon, draggable: false })
             .addTo(map)
-            .bindPopup(`<b>${OWN_NAME}</b><br>Diese Station`);
+            .bindPopup(`<b>${OWN_NAME}</b><br>Diese Station` + priceBadgesHtml(OWN_SUPER, OWN_E10, OWN_DIESEL));
 
         // Klick auf Karte → Fokus auf Hauptstation (kein Setzen der Position)
         map.on('click', function() {
@@ -388,14 +398,10 @@
             const dist = haversine(OWN_LAT, OWN_LNG, st.lat, st.lng);
             const _stIcon = makePricePinIcon(st.price_super, st.price_e10, st.price_diesel);
             const icon = _stIcon || makeCircleIcon('#f97316', '#c2410c', '●');
-            const priceInfo = [
-                st.price_super  ? `Super ${st.price_super.toFixed(3).replace('.',',')}` : null,
-                st.price_diesel ? `Diesel ${st.price_diesel.toFixed(3).replace('.',',')}` : null,
-            ].filter(Boolean).join(' &nbsp;·&nbsp; ');
             const marker = L.marker([st.lat, st.lng], { icon, draggable: false })
                 .addTo(map)
                 .bindPopup(`<b>${st.name}</b><br>${st.city}<br>${formatDist(dist)} entfernt`
-                    + (priceInfo ? `<br><small style="color:#f97316;">${priceInfo}</small>` : ''));
+                    + priceBadgesHtml(st.price_super, st.price_e10, st.price_diesel));
             otherMarkers.push({ lat: st.lat, lng: st.lng, marker });
             if (dist <= 5) allBounds.push([st.lat, st.lng]);
         });
@@ -409,10 +415,6 @@
             const _cIcon = makePricePinIcon(c.price_super, c.price_e10, c.price_diesel);
             const icon = _cIcon || makeCircleIcon('#ef4444', '#991b1b', String(idx + 1));
             const addr = [c.street, c.city].filter(Boolean).join(', ');
-            const priceInfo = [
-                c.price_super  ? `Super ${c.price_super.toFixed(3).replace('.',',')}` : null,
-                c.price_diesel ? `Diesel ${c.price_diesel.toFixed(3).replace('.',',')}` : null,
-            ].filter(Boolean).join(' &nbsp;·&nbsp; ');
             const marker = L.marker([c.lat, c.lng], { icon, draggable: false })
                 .addTo(map)
                 .bindPopup(
@@ -420,7 +422,7 @@
                     (c.brand ? ` <span style="color:#9ca3af">(${c.brand})</span>` : '') +
                     (addr ? `<br><small>${addr}</small>` : '') +
                     `<br><small>${dist} entfernt</small>` +
-                    (priceInfo ? `<br><small style="color:#ef4444;">${priceInfo}</small>` : '')
+                    priceBadgesHtml(c.price_super, c.price_e10, c.price_diesel)
                 );
             compMarkers.push({ idx, lat: c.lat, lng: c.lng, marker });
             if (distKm <= 5) allBounds.push([c.lat, c.lng]);
