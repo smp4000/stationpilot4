@@ -4,8 +4,6 @@ namespace App\Filament\App\Pages;
 
 use App\Models\Employee;
 use Filament\Actions\Action;
-use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -52,25 +50,18 @@ class MeinProfil extends Page
         }
 
         $this->form->fill([
-            // Tab 1 – Persönliche Daten
-            'first_name'      => $employee->first_name,
-            'last_name'       => $employee->last_name,
-            'birth_name'      => $employee->birth_name,
-            'birth_date'      => $employee->birth_date?->format('Y-m-d'),
-            'birth_place'     => $employee->birth_place,
-            'gender'          => $employee->gender,
-            'marital_status'  => $employee->marital_status,
-            'nationality'     => $employee->nationality,
+            // Tab 1 – Name
+            'first_name'   => $employee->first_name,
+            'last_name'    => $employee->last_name,
 
             // Tab 2 – Kontakt & Adresse
-            'email'           => $employee->email,
-            'phone'           => $employee->phone,
-            'phone_mobile'    => $employee->phone_mobile,
-            'address'         => $employee->address,
-            'house_number'    => $employee->house_number,
-            'zip'             => $employee->zip,
-            'city'            => $employee->city,
-            'country'         => $employee->country,
+            'email'        => $employee->email,
+            'phone'        => $employee->phone,
+            'phone_mobile' => $employee->phone_mobile,
+            'address'      => $employee->address,
+            'house_number' => $employee->house_number,
+            'zip'          => $employee->zip,
+            'city'         => $employee->city,
         ]);
     }
 
@@ -85,8 +76,8 @@ class MeinProfil extends Page
             Tabs::make('Profil')
                 ->tabs([
 
-                    // ── Tab 1: Persönliche Daten ──────────────────────────
-                    Tab::make('Persönliche Daten')
+                    // ── Tab 1: Mein Name ─────────────────────────────────
+                    Tab::make('Mein Name')
                         ->icon('heroicon-o-user')
                         ->schema([
                             Section::make()
@@ -101,45 +92,11 @@ class MeinProfil extends Page
                                         ->label('Nachname')
                                         ->required()
                                         ->maxLength(100),
-
-                                    TextInput::make('birth_name')
-                                        ->label('Geburtsname')
-                                        ->maxLength(100),
-
-                                    DatePicker::make('birth_date')
-                                        ->label('Geburtsdatum')
-                                        ->displayFormat('d.m.Y'),
-
-                                    TextInput::make('birth_place')
-                                        ->label('Geburtsort')
-                                        ->maxLength(100),
-
-                                    Select::make('gender')
-                                        ->label('Geschlecht')
-                                        ->options([
-                                            'm' => 'Männlich',
-                                            'w' => 'Weiblich',
-                                            'd' => 'Divers',
-                                        ]),
-
-                                    Select::make('marital_status')
-                                        ->label('Familienstand')
-                                        ->options([
-                                            'ledig'              => 'Ledig',
-                                            'verheiratet'        => 'Verheiratet',
-                                            'geschieden'         => 'Geschieden',
-                                            'verwitwet'          => 'Verwitwet',
-                                            'eingetragene_partnerschaft' => 'Eingetragene Partnerschaft',
-                                        ]),
-
-                                    TextInput::make('nationality')
-                                        ->label('Staatsangehörigkeit')
-                                        ->maxLength(100),
                                 ]),
 
                             Actions::make([
                                 Action::make('saveProfile')
-                                    ->label('Profil speichern')
+                                    ->label('Speichern')
                                     ->icon('heroicon-o-check')
                                     ->color('primary')
                                     ->action('saveProfile'),
@@ -188,11 +145,6 @@ class MeinProfil extends Page
                                     TextInput::make('city')
                                         ->label('Ort')
                                         ->maxLength(100),
-
-                                    TextInput::make('country')
-                                        ->label('Land')
-                                        ->maxLength(100)
-                                        ->columnSpanFull(),
                                 ]),
 
                             Actions::make([
@@ -260,22 +212,15 @@ class MeinProfil extends Page
         }
 
         $employee->update([
-            'first_name'     => $data['first_name']     ?? null,
-            'last_name'      => $data['last_name']      ?? null,
-            'birth_name'     => $data['birth_name']     ?? null,
-            'birth_date'     => $data['birth_date']     ?? null,
-            'birth_place'    => $data['birth_place']    ?? null,
-            'gender'         => $data['gender']         ?? null,
-            'marital_status' => $data['marital_status'] ?? null,
-            'nationality'    => $data['nationality']    ?? null,
-            'email'          => $data['email']          ?? null,
-            'phone'          => $data['phone']          ?? null,
-            'phone_mobile'   => $data['phone_mobile']   ?? null,
-            'address'        => $data['address']        ?? null,
-            'house_number'   => $data['house_number']   ?? null,
-            'zip'            => $data['zip']            ?? null,
-            'city'           => $data['city']           ?? null,
-            'country'        => $data['country']        ?? null,
+            'first_name'   => $data['first_name']   ?? null,
+            'last_name'    => $data['last_name']     ?? null,
+            'email'        => $data['email']         ?? null,
+            'phone'        => $data['phone']         ?? null,
+            'phone_mobile' => $data['phone_mobile']  ?? null,
+            'address'      => $data['address']       ?? null,
+            'house_number' => $data['house_number']  ?? null,
+            'zip'          => $data['zip']           ?? null,
+            'city'         => $data['city']          ?? null,
         ]);
 
         Notification::make()->title('Profil gespeichert.')->success()->send();
