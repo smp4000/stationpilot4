@@ -1,34 +1,56 @@
 <x-filament-widgets::widget>
 @php
-    $employee = $this->getEmployee();
-    $user     = auth()->user();
-    $hour     = now()->hour;
-    $greeting = match(true) {
+    $employee      = $this->getEmployee();
+    $user          = auth()->user();
+    $hour          = now()->hour;
+    $greeting      = match(true) {
         $hour < 12 => 'Guten Morgen',
         $hour < 18 => 'Guten Tag',
         default    => 'Guten Abend',
     };
+    $activeStationId = session('active_station_id');
+    $activeStation   = $activeStationId ? \App\Models\Station::find($activeStationId) : null;
 @endphp
 
 <x-filament::section>
 
     {{-- Header --}}
     <div style="background:linear-gradient(135deg,#1e3a8a 0%,#2563eb 100%);border-radius:12px;padding:24px 28px;margin-bottom:16px;">
-        <div style="display:flex;align-items:center;gap:16px;">
-            <div style="width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#fff;flex-shrink:0;">
-                {{ strtoupper(substr($user->first_name ?? '?', 0, 1)) }}{{ strtoupper(substr($user->last_name ?? '', 0, 1)) }}
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+            <div style="display:flex;align-items:center;gap:16px;">
+                <div style="width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#fff;flex-shrink:0;">
+                    {{ strtoupper(substr($user->first_name ?? '?', 0, 1)) }}{{ strtoupper(substr($user->last_name ?? '', 0, 1)) }}
+                </div>
+                <div>
+                    <p style="color:rgba(255,255,255,0.7);font-size:13px;margin:0 0 2px;">{{ $greeting }},</p>
+                    <h2 style="color:#fff;font-size:20px;font-weight:700;margin:0 0 2px;">{{ $user->first_name }} {{ $user->last_name }}</h2>
+                    @if ($activeStation)
+                        <p style="color:rgba(255,255,255,0.85);font-size:13px;margin:0;">
+                            ⛽ {{ $activeStation->name }}
+                            <span style="background:rgba(255,255,255,0.2);padding:1px 8px;border-radius:4px;font-size:11px;margin-left:4px;">Aktive Schicht</span>
+                        </p>
+                    @endif
+                </div>
             </div>
-            <div>
-                <p style="color:rgba(255,255,255,0.7);font-size:13px;margin:0 0 2px;">{{ $greeting }},</p>
-                <h2 style="color:#fff;font-size:20px;font-weight:700;margin:0 0 2px;">{{ $user->first_name }} {{ $user->last_name }}</h2>
-                @if ($employee?->station)
-                    <p style="color:rgba(255,255,255,0.7);font-size:13px;margin:0;">
-                        📍 {{ $employee->station->name }}
-                    </p>
-                @endif
-            </div>
+
+            {{-- Station wählen / wechseln Button --}}
+            <a href="{{ \App\Filament\App\Pages\StationWaehlen::getUrl() }}"
+               style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;">
+                📍 {{ $activeStation ? 'Station wechseln' : 'Station wählen' }}
+            </a>
         </div>
     </div>
+
+    {{-- Keine Station gewählt – Hinweis --}}
+    @if (! $activeStation)
+        <div style="background:#fef2f2;border-left:4px solid #ef4444;border-radius:0 8px 8px 0;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px;">
+            <span style="font-size:18px;">⛽</span>
+            <p style="margin:0;font-size:13px;color:#991b1b;">
+                Sie haben noch keine Station für heute gewählt.
+                <a href="{{ \App\Filament\App\Pages\StationWaehlen::getUrl() }}" style="font-weight:700;color:#dc2626;text-decoration:underline;">Jetzt Station wählen →</a>
+            </p>
+        </div>
+    @endif
 
     {{-- Info-Kacheln --}}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;">

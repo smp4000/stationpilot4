@@ -2,6 +2,7 @@
 namespace App\Providers\Filament;
 use App\Http\Middleware\CheckTenantStatus;
 use App\Http\Middleware\EnsureTenantContext;
+use App\Http\Middleware\EnsureEmployeeStationSelected;
 use App\Http\Middleware\RedirectIfMustChangePassword;
 use App\Http\Middleware\SetPartnerPermissionsTeam;
 use Filament\Http\Middleware\Authenticate;
@@ -100,7 +101,8 @@ class AppPanelProvider extends PanelProvider
                 SetPartnerPermissionsTeam::class,       // P03: setzt Team-ID + tenant_id in Session
                 EnsureTenantContext::class,             // P04: verifiziert Session-Konsistenz
                 CheckTenantStatus::class,               // P04: prüft Abo-Status
-                RedirectIfMustChangePassword::class,    // Mitarbeiter: PW-Änderung erzwingen
+                RedirectIfMustChangePassword::class,        // Mitarbeiter: PW-Änderung erzwingen
+                EnsureEmployeeStationSelected::class,       // Mitarbeiter: Station auswählen
             ]);
     }
 }
