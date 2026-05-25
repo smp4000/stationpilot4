@@ -10,6 +10,7 @@
     };
     $activeStationId = session('active_station_id');
     $activeStation   = $activeStationId ? \App\Models\Station::find($activeStationId) : null;
+    $shiftStart      = session('shift_started_at') ? \Carbon\Carbon::parse(session('shift_started_at'))->format('H:i \U\h\r') : null;
 @endphp
 
 <x-filament::section>
@@ -27,7 +28,11 @@
                     @if ($activeStation)
                         <p style="color:rgba(255,255,255,0.85);font-size:13px;margin:0;">
                             ⛽ {{ $activeStation->name }}
-                            <span style="background:rgba(255,255,255,0.2);padding:1px 8px;border-radius:4px;font-size:11px;margin-left:4px;">Aktive Schicht</span>
+                            @if ($shiftStart)
+                                <span style="background:rgba(255,255,255,0.2);padding:1px 8px;border-radius:4px;font-size:11px;margin-left:4px;">Schicht seit {{ $shiftStart }}</span>
+                            @else
+                                <span style="background:rgba(255,255,255,0.2);padding:1px 8px;border-radius:4px;font-size:11px;margin-left:4px;">Aktive Schicht</span>
+                            @endif
                         </p>
                     @endif
                 </div>

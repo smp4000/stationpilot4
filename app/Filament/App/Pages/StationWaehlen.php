@@ -8,8 +8,9 @@ use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 
 /**
- * Stationsauswahl für Mitarbeiter – muss vor jeder Arbeitssession gewählt werden.
- * Nur sichtbar für User vom Typ 'employee'.
+ * Stationsauswahl für Mitarbeiter.
+ * Erste Anmeldung: Station wählen.
+ * Während der Schicht: Station wechseln mit Bestätigung.
  */
 class StationWaehlen extends Page
 {
@@ -30,7 +31,10 @@ class StationWaehlen extends Page
         return auth()->user()?->isEmployee() ?? false;
     }
 
-    // ─── Stationen des Mitarbeiters ──────────────────────────────────────────
+    // Warte auf Bestätigung beim Stationswechsel
+    public ?string $pendingStationId = null;
+
+    // ─── Stationen ──────────────────────────────────────────────────────────
 
     public function getStations(): \Illuminate\Support\Collection
     {
@@ -39,7 +43,6 @@ class StationWaehlen extends Page
             return collect();
         }
 
-        // Primärstation + zugewiesene Stationen
         $stations = $employee->stations()->where('is_active', true)->get();
 
         if ($employee->station && ! $stations->contains('id', $employee->station->id)) {
@@ -55,16 +58,19 @@ class StationWaehlen extends Page
         return $id ? Station::find($id) : null;
     }
 
-    // ─── Station aktivieren ──────────────────────────────────────────────────
+    public function getShiftStart(): ?string
+    {
+        $ts = session('shift_started_at');
+        return $ts ? \Carbon\Carbon::parse($ts)->format('H:i \U\h\r') : null;
+    }
+
+    // ─── Station wählen / wechseln ───────────────────────────────────────────
 
     public function selectStation(string $stationId): void
     {
         $employee = Employee::where('user_id', auth()->id())->first();
-        if (! $employee) {
-            return;
-        }
+        if (! $employee) return;
 
-        // Prüfen ob Mitarbeiter dieser Station zugeordnet ist
         $allowed = $employee->stations()->where('stations.id', $stationId)->exists()
             || $employee->station_id === $stationId;
 
@@ -73,21 +79,58 @@ class StationWaehlen extends Page
             return;
         }
 
-        session(['active_station_id' => $stationId]);
+        $activeId = session('active_station_id');
 
+        // Wenn bereits eine andere Station aktiv → Bestätigung anfordern
+        if ($activeId && $activeId !== $stationId) {
+            $this->pendingStationId = $stationId;
+            return; // Blade zeigt jetzt den Bestätigungsdialog
+        }
+
+        $this->doSelectStation($stationId);
+    }
+
+    public function confirmSwitch(): void
+    {
+        if (! $this->pendingStationId) return;
+        $this->doSelectStation($this->pendingStationId);
+        $this->pendingStationId = null;
+    }
+
+    public function cancelSwitch(): void
+    {
+        $this->pendingStationId = null;
+    }
+
+    private function doSelectStation(string $stationId): void
+    {
         $station = Station::find($stationId);
 
+        session([
+            'active_station_id' => $stationId,
+            'shift_started_at'  => now()->toDateTimeString(),
+        ]);
+
         Notification::make()
-            ->title('Station gewählt: ' . $station?->name)
+            ->title('⛽ ' . $station?->name)
+            ->body('Schicht gestartet um ' . now()->format('H:i') . ' Uhr.')
             ->success()
             ->send();
 
         $this->redirect(url('/app'));
     }
 
+    // ─── Schicht beenden ────────────────────────────────────────────────────
+
     public function clearStation(): void
     {
-        session()->forget('active_station_id');
-        Notification::make()->title('Station abgemeldet.')->info()->send();
+        $station = $this->getActiveStation();
+        session()->forget(['active_station_id', 'shift_started_at']);
+
+        Notification::make()
+            ->title('Schicht beendet')
+            ->body($station ? 'Sie haben sich von ' . $station->name . ' abgemeldet.' : '')
+            ->info()
+            ->send();
     }
 }
