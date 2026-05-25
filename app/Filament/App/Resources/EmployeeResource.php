@@ -3,11 +3,14 @@
 namespace App\Filament\App\Resources;
 
 use App\Filament\App\Resources\EmployeeResource\Pages;
+use App\Mail\EmployeeAppAccessMail;
 use App\Mail\EmployeeInvitationMail;
 use App\Mail\EmployeePasswordMail;
 use App\Models\Employee;
 use App\Models\EmployeeAccessLog;
 use App\Models\Station;
+use App\Models\User;
+use Illuminate\Support\Facades\Hash;
 use Filament\Actions\Action;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
@@ -516,6 +519,15 @@ class EmployeeResource extends Resource
                                           : '')
                                     : 'Noch keine Einladung verschickt.')
                                 : 'Neuer Mitarbeiter – noch nicht gespeichert.'),
+
+                        Placeholder::make('app_zugang_info')
+                            ->label('App-Panel Zugang')
+                            ->content(fn ($record): string => $record
+                                ? ($record->user_id
+                                    ? '✅ Aktiv — verknüpft mit User-Account #' . $record->user_id
+                                      . ($record->user ? ' (' . $record->user->email . ')' : '')
+                                    : '❌ Kein App-Panel-Zugang. Button „App-Zugang erstellen" in der Zeilenaktion nutzen.')
+                                : '—'),
                     ]),
 
             ])->columnSpanFull(),
@@ -656,6 +668,98 @@ class EmployeeResource extends Resource
                             ->success()
                             ->send();
                     }),
+                // ── App-Zugang erstellen ──────────────────────────
+                Action::make('app_zugang')
+                    ->label('App-Zugang erstellen')
+                    ->icon('heroicon-o-computer-desktop')
+                    ->color('success')
+                    ->visible(fn (Employee $record): bool =>
+                        is_null($record->user_id) && !empty($record->email) && !$record->deleted_at
+                    )
+                    ->requiresConfirmation()
+                    ->modalHeading('App-Zugang erstellen')
+                    ->modalDescription(fn (Employee $record): string =>
+                        $record->first_name . ' ' . $record->last_name .
+                        ' erhält einen Login für das App-Panel. Ein temporäres Passwort wird an ' .
+                        $record->email . ' gesendet.'
+                    )
+                    ->modalSubmitActionLabel('Zugang erstellen & E-Mail senden')
+                    ->action(function (Employee $record): void {
+                        // Zufälliges Passwort
+                        $plain = Str::random(12);
+
+                        // User-Account anlegen
+                        $user = User::create([
+                            'tenant_id'          => $record->tenant_id,
+                            'first_name'         => $record->first_name,
+                            'last_name'          => $record->last_name,
+                            'email'              => $record->email,
+                            'password'           => Hash::make($plain),
+                            'type'               => 'employee',
+                            'is_active'          => true,
+                            'email_verified_at'  => now(),
+                            'locale'             => 'de',
+                        ]);
+
+                        // Mit Employee verknüpfen
+                        $record->user_id = $user->id;
+                        $record->save();
+
+                        // Rollen zuweisen (Spatie)
+                        try {
+                            $user->assignRole('employee');
+                        } catch (\Throwable) {
+                            // Rolle nicht vorhanden – kein Fehler
+                        }
+
+                        // Einladungs-E-Mail senden
+                        try {
+                            Mail::to($user->email)->send(new EmployeeAppAccessMail($user, $plain));
+                        } catch (\Throwable) {
+                            // Mail-Fehler nicht fatal
+                        }
+
+                        EmployeeAccessLog::record(
+                            $record->id,
+                            EmployeeAccessLog::ACTION_INVITE,
+                            'user',
+                            $user->id
+                        );
+
+                        \Filament\Notifications\Notification::make()
+                            ->title('App-Zugang erstellt')
+                            ->body('Login-Daten wurden an ' . $user->email . ' gesendet.')
+                            ->success()
+                            ->send();
+                    }),
+
+                // ── App-Zugang entziehen ──────────────────────────
+                Action::make('app_zugang_entziehen')
+                    ->label('App-Zugang entziehen')
+                    ->icon('heroicon-o-no-symbol')
+                    ->color('danger')
+                    ->visible(fn (Employee $record): bool =>
+                        !is_null($record->user_id) && !$record->deleted_at
+                    )
+                    ->requiresConfirmation()
+                    ->modalHeading('App-Zugang entziehen?')
+                    ->modalDescription('Der Mitarbeiter kann sich dann nicht mehr ins App-Panel einloggen. Der Mitarbeiter-Datensatz bleibt erhalten.')
+                    ->modalSubmitActionLabel('Zugang entziehen')
+                    ->action(function (Employee $record): void {
+                        // User deaktivieren und Verknüpfung trennen
+                        if ($record->user) {
+                            $record->user->update(['is_active' => false]);
+                        }
+                        $record->user_id = null;
+                        $record->save();
+
+                        \Filament\Notifications\Notification::make()
+                            ->title('App-Zugang entzogen')
+                            ->body('Der Mitarbeiter-Account wurde deaktiviert.')
+                            ->success()
+                            ->send();
+                    }),
+
                 DeleteAction::make()
                     ->hidden(fn (Employee $record): bool => (bool) $record->deleted_at),
                 RestoreAction::make()
