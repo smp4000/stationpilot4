@@ -45,6 +45,13 @@ class EmployeeResource extends Resource
 {
     protected static ?string $model = Employee::class;
 
+    /** Nur Partner und Steuerberater dürfen alle Mitarbeiter verwalten. */
+    public static function canAccess(): bool
+    {
+        $user = auth()->user();
+        return $user && ($user->isPartner() || $user->isTaxAdvisor());
+    }
+
     protected static \BackedEnum|string|null $navigationIcon = 'heroicon-o-users';
 
     protected static \UnitEnum|string|null $navigationGroup = 'Personal';
@@ -694,11 +701,12 @@ class EmployeeResource extends Resource
                             'first_name'         => $record->first_name,
                             'last_name'          => $record->last_name,
                             'email'              => $record->email,
-                            'password'           => Hash::make($plain),
-                            'type'               => 'employee',
-                            'is_active'          => true,
-                            'email_verified_at'  => now(),
-                            'locale'             => 'de',
+                            'password'              => Hash::make($plain),
+                            'type'                  => 'employee',
+                            'is_active'             => true,
+                            'must_change_password'  => true,
+                            'email_verified_at'     => now(),
+                            'locale'                => 'de',
                         ]);
 
                         // Mit Employee verknüpfen

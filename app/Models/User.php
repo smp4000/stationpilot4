@@ -55,6 +55,7 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
         'pin_hash',
         'scan_code',
         'is_active',
+        'must_change_password',
     ];
 
     protected $hidden = [
@@ -70,6 +71,7 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
         return [
             'is_company'                => 'boolean',
             'is_active'                 => 'boolean',
+            'must_change_password'      => 'boolean',
             'email_verified_at'         => 'datetime',
             'two_factor_confirmed_at'   => 'datetime',
             'last_login_at'             => 'datetime',

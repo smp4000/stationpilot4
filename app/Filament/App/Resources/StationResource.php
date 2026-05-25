@@ -63,7 +63,12 @@ class StationResource extends Resource
     // Zugriffskontrolle
     // ─────────────────────────────────────────────
 
-    public static function canAccess(): bool   { return auth()->user()?->can('partner.stations.list')   ?? false; }
+    public static function canAccess(): bool
+    {
+        $user = auth()->user();
+        if (! $user || $user->isEmployee()) return false;
+        return $user->can('partner.stations.list') ?? false;
+    }
     public static function canCreate(): bool   { return auth()->user()?->can('partner.stations.create') ?? false; }
     public static function canEdit($r): bool   { return auth()->user()?->can('partner.stations.edit')   ?? false; }
     public static function canDelete($r): bool { return auth()->user()?->can('partner.stations.delete') ?? false; }
