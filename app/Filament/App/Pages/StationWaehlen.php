@@ -58,12 +58,6 @@ class StationWaehlen extends Page
         return $id ? Station::find($id) : null;
     }
 
-    public function getShiftStart(): ?string
-    {
-        $ts = session('shift_started_at');
-        return $ts ? \Carbon\Carbon::parse($ts)->format('H:i \U\h\r') : null;
-    }
-
     // ─── Station wählen / wechseln ───────────────────────────────────────────
 
     public function selectStation(string $stationId): void
@@ -71,7 +65,7 @@ class StationWaehlen extends Page
         $employee = Employee::where('user_id', auth()->id())->first();
         if (! $employee) return;
 
-        $allowed = $employee->stations()->where('stations.id', $stationId)->exists()
+        $allowed = $employee->stations()->where('gas_stations.id', $stationId)->exists()
             || $employee->station_id === $stationId;
 
         if (! $allowed) {
@@ -106,30 +100,27 @@ class StationWaehlen extends Page
     {
         $station = Station::find($stationId);
 
-        session([
-            'active_station_id' => $stationId,
-            'shift_started_at'  => now()->toDateTimeString(),
-        ]);
+        session(['active_station_id' => $stationId]);
 
         Notification::make()
             ->title('⛽ ' . $station?->name)
-            ->body('Schicht gestartet um ' . now()->format('H:i') . ' Uhr.')
+            ->body('Tankstelle ausgewählt.')
             ->success()
             ->send();
 
         $this->redirect(url('/app'));
     }
 
-    // ─── Schicht beenden ────────────────────────────────────────────────────
+    // ─── Station verlassen ──────────────────────────────────────────────────
 
     public function clearStation(): void
     {
         $station = $this->getActiveStation();
-        session()->forget(['active_station_id', 'shift_started_at']);
+        session()->forget('active_station_id');
 
         Notification::make()
-            ->title('Schicht beendet')
-            ->body($station ? 'Sie haben sich von ' . $station->name . ' abgemeldet.' : '')
+            ->title('Tankstelle abgemeldet')
+            ->body($station ? 'Sie haben ' . $station->name . ' verlassen.' : '')
             ->info()
             ->send();
     }

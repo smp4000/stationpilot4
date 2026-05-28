@@ -282,6 +282,21 @@ class Employee extends Model
         return $this->hasMany(EmployeeAccessLog::class, 'employee_id')->orderByDesc('accessed_at');
     }
 
+    public function keyHandovers(): HasMany
+    {
+        return $this->hasMany(\App\Models\KeyHandover::class);
+    }
+
+    public function credentials(): HasMany
+    {
+        return $this->hasMany(\App\Models\StationCredential::class);
+    }
+
+    public function contracts(): HasMany
+    {
+        return $this->hasMany(\App\Models\EmployeeContract::class);
+    }
+
     // ─── DSGVO-Hilfsmethoden ───────────────────────────────────────────────
 
     /**

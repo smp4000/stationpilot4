@@ -19,8 +19,10 @@ use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\RestoreAction;
 use Filament\Actions\ViewAction;
+use App\Models\EmployeeContract;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
@@ -34,6 +36,7 @@ use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
+use Filament\Actions\ActionGroup;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TrashedFilter;
@@ -45,11 +48,24 @@ class EmployeeResource extends Resource
 {
     protected static ?string $model = Employee::class;
 
-    /** Nur Partner und Steuerberater dürfen alle Mitarbeiter verwalten. */
     public static function canAccess(): bool
     {
-        $user = auth()->user();
-        return $user && ($user->isPartner() || $user->isTaxAdvisor());
+        return auth()->user()?->can('partner.employees.list') ?? false;
+    }
+
+    public static function canCreate(): bool
+    {
+        return auth()->user()?->can('partner.employees.create') ?? false;
+    }
+
+    public static function canEdit(\Illuminate\Database\Eloquent\Model $record): bool
+    {
+        return auth()->user()?->can('partner.employees.edit') ?? false;
+    }
+
+    public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool
+    {
+        return auth()->user()?->can('partner.employees.delete') ?? false;
     }
 
     protected static \BackedEnum|string|null $navigationIcon = 'heroicon-o-users';
@@ -626,173 +642,264 @@ class EmployeeResource extends Resource
             ->actions([
                 ViewAction::make(),
                 EditAction::make(),
-                Action::make('passwort_senden')
-                    ->label('Passwort senden')
-                    ->icon('heroicon-o-lock-closed')
-                    ->color('warning')
-                    ->visible(fn ($record): bool => !empty($record->email))
-                    ->requiresConfirmation()
-                    ->modalHeading('Neues Passwort zusenden?')
-                    ->modalDescription(fn ($record) => 'Ein zufälliges Passwort wird an ' . $record->email . ' gesendet. Das aktuelle Passwort wird überschrieben.')
-                    ->modalSubmitActionLabel('Passwort senden')
-                    ->action(function ($record): void {
-                        $plain = \Illuminate\Support\Str::random(10);
-                        $record->password             = \Illuminate\Support\Facades\Hash::make($plain);
-                        $record->must_change_password = true;
-                        $record->save();
-                        \Illuminate\Support\Facades\Mail::to($record->email)
-                            ->send(new EmployeePasswordMail($record, $plain));
-                        \Filament\Notifications\Notification::make()
-                            ->title('Passwort gesendet')
-                            ->body('Ein temporäres Passwort wurde an ' . $record->email . ' verschickt.')
-                            ->success()
-                            ->send();
-                    }),
-                Action::make('einladen')
-                    ->label('Einladen')
-                    ->icon('heroicon-o-envelope')
-                    ->color('info')
-                    ->visible(fn (Employee $record): bool => $record->email !== null && $record->status !== 'aktiv')
-                    ->action(function (Employee $record): void {
-                        $record->invitation_token      = Str::random(64);
-                        $record->invited_at            = now();
-                        $record->invitation_expires_at = now()->addDays(7);
-                        $record->status                = 'eingeladen';
-                        $record->save();
 
-                        Mail::to($record->email)->send(new EmployeeInvitationMail($record));
+                // ── PDF drucken / Vertrag ──────────────────────────
+                ActionGroup::make([
+                    Action::make('pdf_mitarbeiterdaten')
+                        ->label('Mitarbeiterdaten (PDF)')
+                        ->icon('heroicon-o-document-text')
+                        ->color('gray')
+                        ->url(fn (Employee $record): string => route('pdf.employee.mitarbeiterdaten', $record->id))
+                        ->openUrlInNewTab(),
 
-                        EmployeeAccessLog::record(
-                            $record->id,
-                            EmployeeAccessLog::ACTION_INVITE,
-                            'employee',
-                            $record->id
-                        );
+                    // Vertrag erstellen — nur wenn noch kein Vertrag vorhanden
+                    Action::make('vertrag_erstellen')
+                        ->label('Vertrag erstellen')
+                        ->icon('heroicon-o-document-plus')
+                        ->color('primary')
+                        ->visible(fn (Employee $record): bool => !$record->contracts()->exists())
+                        ->url(fn (Employee $record): string =>
+                            '/app/employee-contracts/create?employee_id=' . $record->id
+                        ),
 
-                        \Filament\Notifications\Notification::make()
-                            ->title('Einladung versendet')
-                            ->body('Einladung wurde an ' . $record->email . ' versendet.')
-                            ->success()
-                            ->send();
-                    }),
-                // ── App-Zugang erstellen ──────────────────────────
-                Action::make('app_zugang')
-                    ->label('App-Zugang erstellen')
-                    ->icon('heroicon-o-computer-desktop')
-                    ->color('success')
-                    ->visible(fn (Employee $record): bool =>
-                        is_null($record->user_id) && !empty($record->email) && !$record->deleted_at
-                    )
-                    ->requiresConfirmation()
-                    ->modalHeading('App-Zugang erstellen')
-                    ->modalDescription(fn (Employee $record): string =>
-                        $record->first_name . ' ' . $record->last_name .
-                        ' erhält einen Login für das App-Panel. Ein temporäres Passwort wird an ' .
-                        $record->email . ' gesendet.'
-                    )
-                    ->modalSubmitActionLabel('Zugang erstellen & E-Mail senden')
-                    ->action(function (Employee $record): void {
-                        // Zufälliges Passwort
-                        $plain = Str::random(12);
+                    // Verträge anzeigen — nur wenn Verträge vorhanden
+                    Action::make('vertraege_anzeigen')
+                        ->label('Verträge anzeigen')
+                        ->icon('heroicon-o-document-magnifying-glass')
+                        ->color('primary')
+                        ->visible(fn (Employee $record): bool => $record->contracts()->exists())
+                        ->url('/app/employee-contracts')
+                        ->openUrlInNewTab(),
 
-                        // Bestehenden (evtl. deaktivierten) User wiederverwenden
-                        // oder neuen anlegen – verhindert unique-Constraint-Fehler
-                        $user = User::withTrashed()
-                            ->where('email', $record->email)
-                            ->where('tenant_id', $record->tenant_id)
-                            ->first();
+                    // Neuen Vertrag erstellen — nur wenn Verträge vorhanden
+                    Action::make('vertrag_neu')
+                        ->label('Neuen Vertrag erstellen')
+                        ->icon('heroicon-o-document-plus')
+                        ->color('gray')
+                        ->visible(fn (Employee $record): bool => $record->contracts()->exists())
+                        ->url(fn (Employee $record): string =>
+                            '/app/employee-contracts/create?employee_id=' . $record->id
+                        ),
 
-                        if ($user) {
-                            $user->restore(); // stellt soft-delete wieder her (falls gelöscht)
-                            $user->update([
-                                'first_name'           => $record->first_name,
-                                'last_name'            => $record->last_name,
-                                'password'             => Hash::make($plain),
-                                'type'                 => 'employee',
-                                'is_active'            => true,
-                                'must_change_password' => true,
-                                'email_verified_at'    => now(),
+                    // Bestehenden Vertrag hochladen — immer sichtbar
+                    Action::make('vertrag_hochladen')
+                        ->label('Bestehenden Vertrag hochladen')
+                        ->icon('heroicon-o-arrow-up-tray')
+                        ->color('info')
+                        ->modalHeading('Bestehenden Vertrag hochladen')
+                        ->modalDescription('Laden Sie einen bereits unterschriebenen Vertrag als PDF hoch.')
+                        ->form([
+                            Select::make('contract_type')
+                                ->label('Vertragsart')
+                                ->options([
+                                    'unbefristet' => 'Unbefristet',
+                                    'befristet'   => 'Befristet',
+                                    'minijob'     => 'Minijob (geringfügig)',
+                                ])
+                                ->required(),
+                            FileUpload::make('contract_file')
+                                ->label('Vertrag als PDF')
+                                ->disk('local')
+                                ->directory('contracts')
+                                ->acceptedFileTypes(['application/pdf'])
+                                ->required(),
+                        ])
+                        ->action(function (Employee $record, array $data): void {
+                            $user = auth()->user();
+                            EmployeeContract::create([
+                                'tenant_id'         => $record->tenant_id,
+                                'employee_id'       => $record->id,
+                                'created_by'        => $user->id,
+                                'contract_type'     => $data['contract_type'],
+                                'status'            => 'completed',
+                                'is_uploaded'       => true,
+                                'pdf_path'          => $data['contract_file'],
+                                'original_filename' => basename((string) $data['contract_file']),
+                                'employer_name'     => trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')),
+                                'employer_company'  => $record->tenant?->name ?? '',
+                                'employer_street'   => '',
+                                'employer_zip'      => '',
+                                'employer_city'     => '',
+                                'signing_location'  => '',
                             ]);
-                        } else {
-                            $user = User::create([
-                                'tenant_id'            => $record->tenant_id,
-                                'first_name'           => $record->first_name,
-                                'last_name'            => $record->last_name,
-                                'email'                => $record->email,
-                                'password'             => Hash::make($plain),
-                                'type'                 => 'employee',
-                                'is_active'            => true,
-                                'must_change_password' => true,
-                                'email_verified_at'    => now(),
-                                'locale'               => 'de',
-                            ]);
-                        }
+                            \Filament\Notifications\Notification::make()
+                                ->title('Vertrag hochgeladen')
+                                ->success()
+                                ->send();
+                        }),
+                ])
+                ->label('Dokumente')
+                ->icon('heroicon-o-printer')
+                ->color('gray')
+                ->button(),
 
-                        // Mit Employee verknüpfen
-                        $record->user_id = $user->id;
-                        $record->save();
+                // ── Weitere Aktionen ──────────────────────────────
+                ActionGroup::make([
+                    Action::make('passwort_senden')
+                        ->label('Passwort senden')
+                        ->icon('heroicon-o-lock-closed')
+                        ->color('warning')
+                        ->visible(fn ($record): bool => !empty($record->email))
+                        ->requiresConfirmation()
+                        ->modalHeading('Neues Passwort zusenden?')
+                        ->modalDescription(fn ($record) => 'Ein zufälliges Passwort wird an ' . $record->email . ' gesendet. Das aktuelle Passwort wird überschrieben.')
+                        ->modalSubmitActionLabel('Passwort senden')
+                        ->action(function ($record): void {
+                            $plain = \Illuminate\Support\Str::random(10);
+                            $record->password             = \Illuminate\Support\Facades\Hash::make($plain);
+                            $record->must_change_password = true;
+                            $record->save();
+                            \Illuminate\Support\Facades\Mail::to($record->email)
+                                ->send(new EmployeePasswordMail($record, $plain));
+                            \Filament\Notifications\Notification::make()
+                                ->title('Passwort gesendet')
+                                ->body('Ein temporäres Passwort wurde an ' . $record->email . ' verschickt.')
+                                ->success()
+                                ->send();
+                        }),
+                    Action::make('einladen')
+                        ->label('Einladen')
+                        ->icon('heroicon-o-envelope')
+                        ->color('info')
+                        ->visible(fn (Employee $record): bool => $record->email !== null && $record->status !== 'aktiv')
+                        ->action(function (Employee $record): void {
+                            $record->invitation_token      = Str::random(64);
+                            $record->invited_at            = now();
+                            $record->invitation_expires_at = now()->addDays(7);
+                            $record->status                = 'eingeladen';
+                            $record->save();
 
-                        // Rollen zuweisen (Spatie)
-                        try {
-                            $user->assignRole('employee');
-                        } catch (\Throwable) {
-                            // Rolle nicht vorhanden – kein Fehler
-                        }
+                            Mail::to($record->email)->send(new EmployeeInvitationMail($record));
 
-                        // Einladungs-E-Mail senden
-                        try {
-                            Mail::to($user->email)->send(new EmployeeAppAccessMail($user, $plain));
-                        } catch (\Throwable) {
-                            // Mail-Fehler nicht fatal
-                        }
+                            EmployeeAccessLog::record(
+                                $record->id,
+                                EmployeeAccessLog::ACTION_INVITE,
+                                'employee',
+                                $record->id
+                            );
 
-                        EmployeeAccessLog::record(
-                            $record->id,
-                            EmployeeAccessLog::ACTION_INVITE,
-                            'user',
-                            $user->id
-                        );
+                            \Filament\Notifications\Notification::make()
+                                ->title('Einladung versendet')
+                                ->body('Einladung wurde an ' . $record->email . ' versendet.')
+                                ->success()
+                                ->send();
+                        }),
+                    Action::make('app_zugang')
+                        ->label('App-Zugang erstellen')
+                        ->icon('heroicon-o-computer-desktop')
+                        ->color('success')
+                        ->visible(fn (Employee $record): bool =>
+                            is_null($record->user_id) && !empty($record->email) && !$record->deleted_at
+                        )
+                        ->requiresConfirmation()
+                        ->modalHeading('App-Zugang erstellen')
+                        ->modalDescription(fn (Employee $record): string =>
+                            $record->first_name . ' ' . $record->last_name .
+                            ' erhält einen Login für das App-Panel. Ein temporäres Passwort wird an ' .
+                            $record->email . ' gesendet.'
+                        )
+                        ->modalSubmitActionLabel('Zugang erstellen & E-Mail senden')
+                        ->action(function (Employee $record): void {
+                            $plain = Str::random(12);
 
-                        \Filament\Notifications\Notification::make()
-                            ->title('App-Zugang erstellt')
-                            ->body('Login-Daten wurden an ' . $user->email . ' gesendet.')
-                            ->success()
-                            ->send();
-                    }),
+                            $user = User::withTrashed()
+                                ->where('email', $record->email)
+                                ->where('tenant_id', $record->tenant_id)
+                                ->first();
 
-                // ── App-Zugang entziehen ──────────────────────────
-                Action::make('app_zugang_entziehen')
-                    ->label('App-Zugang entziehen')
-                    ->icon('heroicon-o-no-symbol')
-                    ->color('danger')
-                    ->visible(fn (Employee $record): bool =>
-                        !is_null($record->user_id) && !$record->deleted_at
-                    )
-                    ->requiresConfirmation()
-                    ->modalHeading('App-Zugang entziehen?')
-                    ->modalDescription('Der Mitarbeiter kann sich dann nicht mehr ins App-Panel einloggen. Der Mitarbeiter-Datensatz bleibt erhalten.')
-                    ->modalSubmitActionLabel('Zugang entziehen')
-                    ->action(function (Employee $record): void {
-                        // User deaktivieren und Verknüpfung trennen
-                        if ($record->user) {
-                            $record->user->update(['is_active' => false]);
-                        }
-                        $record->user_id = null;
-                        $record->save();
+                            if ($user) {
+                                $user->restore();
+                                $user->update([
+                                    'first_name'           => $record->first_name,
+                                    'last_name'            => $record->last_name,
+                                    'password'             => Hash::make($plain),
+                                    'type'                 => 'employee',
+                                    'is_active'            => true,
+                                    'must_change_password' => true,
+                                    'email_verified_at'    => now(),
+                                ]);
+                            } else {
+                                $user = User::create([
+                                    'tenant_id'            => $record->tenant_id,
+                                    'first_name'           => $record->first_name,
+                                    'last_name'            => $record->last_name,
+                                    'email'                => $record->email,
+                                    'password'             => Hash::make($plain),
+                                    'type'                 => 'employee',
+                                    'is_active'            => true,
+                                    'must_change_password' => true,
+                                    'email_verified_at'    => now(),
+                                    'locale'               => 'de',
+                                ]);
+                            }
 
-                        \Filament\Notifications\Notification::make()
-                            ->title('App-Zugang entzogen')
-                            ->body('Der Mitarbeiter-Account wurde deaktiviert.')
-                            ->success()
-                            ->send();
-                    }),
+                            $record->user_id = $user->id;
+                            $record->save();
 
-                DeleteAction::make()
-                    ->hidden(fn (Employee $record): bool => (bool) $record->deleted_at),
-                RestoreAction::make()
-                    ->visible(fn (Employee $record): bool => (bool) $record->deleted_at),
+                            try {
+                                $user->assignRole('employee');
+                            } catch (\Throwable) {}
+
+                            try {
+                                Mail::to($user->email)->send(new EmployeeAppAccessMail($user, $plain));
+                            } catch (\Throwable) {}
+
+                            EmployeeAccessLog::record(
+                                $record->id,
+                                EmployeeAccessLog::ACTION_INVITE,
+                                'user',
+                                $user->id
+                            );
+
+                            \Filament\Notifications\Notification::make()
+                                ->title('App-Zugang erstellt')
+                                ->body('Login-Daten wurden an ' . $user->email . ' gesendet.')
+                                ->success()
+                                ->send();
+                        }),
+                    Action::make('app_zugang_entziehen')
+                        ->label('App-Zugang entziehen')
+                        ->icon('heroicon-o-no-symbol')
+                        ->color('danger')
+                        ->visible(fn (Employee $record): bool =>
+                            !is_null($record->user_id) && !$record->deleted_at
+                        )
+                        ->requiresConfirmation()
+                        ->modalHeading('App-Zugang entziehen?')
+                        ->modalDescription('Der Mitarbeiter kann sich dann nicht mehr ins App-Panel einloggen. Der Mitarbeiter-Datensatz bleibt erhalten.')
+                        ->modalSubmitActionLabel('Zugang entziehen')
+                        ->action(function (Employee $record): void {
+                            if ($record->user) {
+                                $record->user->update(['is_active' => false]);
+                            }
+                            $record->user_id = null;
+                            $record->save();
+
+                            \Filament\Notifications\Notification::make()
+                                ->title('App-Zugang entzogen')
+                                ->body('Der Mitarbeiter-Account wurde deaktiviert.')
+                                ->success()
+                                ->send();
+                        }),
+                    DeleteAction::make()
+                        ->hidden(fn (Employee $record): bool => (bool) $record->deleted_at),
+                    RestoreAction::make()
+                        ->visible(fn (Employee $record): bool => (bool) $record->deleted_at),
+                ]),
             ])
             ->defaultSort('last_name', 'asc');
+    }
+
+    // ─────────────────────────────────────────────
+    // Relations
+    // ─────────────────────────────────────────────
+
+    public static function getRelations(): array
+    {
+        return [
+            \App\Filament\App\Resources\EmployeeResource\RelationManagers\KeyHandoversRelationManager::class,
+            \App\Filament\App\Resources\EmployeeResource\RelationManagers\CredentialsRelationManager::class,
+        ];
     }
 
     // ─────────────────────────────────────────────

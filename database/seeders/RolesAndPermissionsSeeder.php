@@ -120,7 +120,7 @@ class RolesAndPermissionsSeeder extends Seeder
             array_values(array_filter($all, fn($p) => ! str_starts_with($p, 'partner.billing')))
         );
 
-        // Stationsleiter — Stationen + Mitarbeiter einladen + Berichte
+        // Stationsleiter — Stationen + Mitarbeiter verwalten + Verträge einsehen + Schlüssel + MDE
         $stationMgr = Role::findOrCreate('station_manager', 'web');
         $stationMgr->syncPermissions([
             'partner.dashboard.view',
@@ -129,6 +129,17 @@ class RolesAndPermissionsSeeder extends Seeder
             'partner.employees.list',
             'partner.employees.view',
             'partner.employees.invite',
+            'partner.contracts.list',
+            'partner.contracts.view',
+            'partner.documents.list',
+            'partner.documents.view',
+            'partner.keys.list',
+            'partner.keys.view',
+            'partner.keys.create',
+            'partner.mde.list',
+            'partner.mde.view',
+            'partner.mde.assign',
+            'partner.mde.reports',
             'partner.reports.view',
         ]);
 
@@ -140,10 +151,16 @@ class RolesAndPermissionsSeeder extends Seeder
             'partner.stations.view',
         ]);
 
-        // Steuerberater — Nur Lohnberichte lesen und exportieren
+        // Steuerberater — Mitarbeiter + Verträge lesen + Berichte exportieren
         $taxAdvisor = Role::findOrCreate('tax_advisor', 'web');
         $taxAdvisor->syncPermissions([
             'partner.dashboard.view',
+            'partner.employees.list',
+            'partner.employees.view',
+            'partner.contracts.list',
+            'partner.contracts.view',
+            'partner.documents.list',
+            'partner.documents.view',
             'partner.reports.view',
             'partner.reports.export',
         ]);
@@ -203,9 +220,44 @@ class RolesAndPermissionsSeeder extends Seeder
             'partner.employees.view',
             'partner.employees.create',
             'partner.employees.edit',
+            'partner.employees.delete',
             'partner.employees.invite',
             'partner.employees.approve',
             'partner.employees.terminate',
+
+            // Verträge
+            'partner.contracts.list',
+            'partner.contracts.view',
+            'partner.contracts.create',
+            'partner.contracts.edit',
+            'partner.contracts.delete',
+            'partner.contracts.send',
+
+            // Generierte Dokumente
+            'partner.documents.list',
+            'partner.documents.view',
+            'partner.documents.create',
+            'partner.documents.delete',
+
+            // Dokument-Vorlagen
+            'partner.document_templates.list',
+            'partner.document_templates.create',
+            'partner.document_templates.edit',
+            'partner.document_templates.delete',
+
+            // Schlüssel / Zugangsdaten
+            'partner.keys.list',
+            'partner.keys.view',
+            'partner.keys.create',
+            'partner.keys.edit',
+            'partner.keys.delete',
+
+            // MDE-Gerät / Android-App
+            'partner.mde.list',           // MDE-Aktivitäten / Logs einsehen
+            'partner.mde.view',           // Einzelne Aktivität details
+            'partner.mde.manage',         // MDE-Zugänge verwalten (PIN, Scan-Code)
+            'partner.mde.assign',         // MDE-Gerät einem Mitarbeiter zuweisen
+            'partner.mde.reports',        // MDE-Berichte / Schichtprotokolle
 
             // Billing
             'partner.billing.view',

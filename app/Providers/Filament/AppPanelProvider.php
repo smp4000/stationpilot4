@@ -5,9 +5,11 @@ use App\Http\Middleware\EnsureTenantContext;
 use App\Http\Middleware\EnsureEmployeeStationSelected;
 use App\Http\Middleware\RedirectIfMustChangePassword;
 use App\Http\Middleware\SetPartnerPermissionsTeam;
+use App\Models\Tenant;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Support\Facades\FilamentView;
 use Filament\View\PanelsRenderHook;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\HtmlString;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -28,12 +30,42 @@ class AppPanelProvider extends PanelProvider
 {
     public function boot(): void
     {
+        // ── Leaflet CSS + JS ─────────────────────────────────────────────────
         FilamentView::registerRenderHook(
             PanelsRenderHook::HEAD_END,
             fn (): HtmlString => new HtmlString(
                 '<link rel="stylesheet" href="' . asset('vendor/leaflet/leaflet.css') . '">' .
                 '<script src="' . asset('vendor/leaflet/leaflet.js') . '"></script>'
             )
+        );
+
+        // ── WhatsApp Widget ──────────────────────────────────────────────────
+        FilamentView::registerRenderHook(
+            PanelsRenderHook::BODY_END,
+            function (): string {
+                $tenantId = (int) session('tenant_id', 0);
+                if (! $tenantId) {
+                    return '';
+                }
+
+                $tenant   = Tenant::find($tenantId);
+                $settings = $tenant?->settings ?? [];
+                $whatsapp = $settings['whatsapp'] ?? [];
+
+                if (! ($whatsapp['enabled'] ?? false)) {
+                    return '';
+                }
+
+                $agents = $whatsapp['agents'] ?? [];
+                if (empty($agents)) {
+                    return '';
+                }
+
+                return Blade::render(
+                    '<x-whatsapp-widget :agents="$agents" />',
+                    ['agents' => $agents]
+                );
+            }
         );
     }
 

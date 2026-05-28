@@ -3,6 +3,7 @@
 namespace App\Filament\App\Pages;
 
 use App\Models\Employee;
+use App\Models\EmployeeContract;
 use Filament\Actions\Action;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
@@ -156,6 +157,14 @@ class MeinProfil extends Page
                             ]),
                         ]),
 
+                    // ── Tab 4: Meine Verträge ─────────────────────────────
+                    Tab::make('Meine Verträge')
+                        ->icon('heroicon-o-document-text')
+                        ->schema([
+                            \Filament\Schemas\Components\View::make('filament.app.pages.mein-profil-vertraege')
+                                ->viewData(['contracts' => $this->getContracts()]),
+                        ]),
+
                     // ── Tab 3: Passwort ───────────────────────────────────
                     Tab::make('Passwort ändern')
                         ->icon('heroicon-o-lock-closed')
@@ -260,5 +269,18 @@ class MeinProfil extends Page
     public function getEmployee(): ?Employee
     {
         return Employee::where('user_id', auth()->id())->first();
+    }
+
+    public function getContracts(): \Illuminate\Support\Collection
+    {
+        $employee = $this->getEmployee();
+        if (!$employee) {
+            return collect();
+        }
+
+        return EmployeeContract::where('employee_id', $employee->id)
+            ->whereNull('deleted_at')
+            ->orderByDesc('created_at')
+            ->get();
     }
 }

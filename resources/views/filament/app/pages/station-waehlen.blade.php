@@ -3,7 +3,6 @@
 @php
     $stations      = $this->getStations();
     $activeStation = $this->getActiveStation();
-    $shiftStart    = $this->getShiftStart();
     $pendingId     = $this->pendingStationId;
     $pending       = $pendingId ? $stations->firstWhere('id', $pendingId) : null;
 @endphp
@@ -18,7 +17,6 @@
                 <p style="margin:0 0 4px;font-size:14px;color:#475569;">
                     Sie sind aktuell angemeldet bei:
                     <strong>{{ $activeStation?->name }}</strong>
-                    @if ($shiftStart) <span style="color:#94a3b8;">(seit {{ $shiftStart }})</span> @endif
                 </p>
                 <p style="margin:0 0 16px;font-size:14px;color:#475569;">
                     Neue Station: <strong style="color:#1e3a8a;">{{ $pending->name }}</strong>
@@ -44,7 +42,7 @@
 {{-- ── Aktive Schicht ── --}}
 @if ($activeStation)
     <x-filament::section>
-        <x-slot name="heading">Aktive Schicht</x-slot>
+        <x-slot name="heading">Aktive Tankstelle</x-slot>
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
             <div style="display:flex;align-items:center;gap:12px;">
                 <div style="width:44px;height:44px;border-radius:8px;background:linear-gradient(135deg,#1e3a8a,#2563eb);display:flex;align-items:center;justify-content:center;">
@@ -52,15 +50,12 @@
                 </div>
                 <div>
                     <p style="margin:0;font-size:16px;font-weight:700;color:#1e293b;">{{ $activeStation->name }}</p>
-                    <p style="margin:0;font-size:13px;color:#64748b;">
-                        {{ $activeStation->city ?? '' }}
-                        @if ($shiftStart) · Schicht seit {{ $shiftStart }} @endif
-                    </p>
+                    <p style="margin:0;font-size:13px;color:#64748b;">{{ $activeStation->city ?? '' }}</p>
                 </div>
             </div>
             <button wire:click="clearStation"
                 style="display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid #e2e8f0;color:#ef4444;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">
-                ✕ Schicht beenden
+                ✕ Tankstelle abmelden
             </button>
         </div>
     </x-filament::section>

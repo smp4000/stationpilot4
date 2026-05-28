@@ -10,7 +10,6 @@
     };
     $activeStationId = session('active_station_id');
     $activeStation   = $activeStationId ? \App\Models\Station::find($activeStationId) : null;
-    $shiftStart      = session('shift_started_at') ? \Carbon\Carbon::parse(session('shift_started_at'))->format('H:i \U\h\r') : null;
 @endphp
 
 <x-filament::section>
@@ -28,11 +27,7 @@
                     @if ($activeStation)
                         <p style="color:rgba(255,255,255,0.85);font-size:13px;margin:0;">
                             ⛽ {{ $activeStation->name }}
-                            @if ($shiftStart)
-                                <span style="background:rgba(255,255,255,0.2);padding:1px 8px;border-radius:4px;font-size:11px;margin-left:4px;">Schicht seit {{ $shiftStart }}</span>
-                            @else
-                                <span style="background:rgba(255,255,255,0.2);padding:1px 8px;border-radius:4px;font-size:11px;margin-left:4px;">Aktive Schicht</span>
-                            @endif
+                            <span style="background:rgba(255,255,255,0.2);padding:1px 8px;border-radius:4px;font-size:11px;margin-left:4px;">Aktive Tankstelle</span>
                         </p>
                     @endif
                 </div>
@@ -41,7 +36,7 @@
             {{-- Station wählen / wechseln Button --}}
             <a href="{{ \App\Filament\App\Pages\StationWaehlen::getUrl() }}"
                style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;">
-                📍 {{ $activeStation ? 'Station wechseln' : 'Station wählen' }}
+                📍 {{ $activeStation ? 'Tankstelle wechseln' : 'Tankstelle wählen' }}
             </a>
         </div>
     </div>
@@ -51,8 +46,8 @@
         <div style="background:#fef2f2;border-left:4px solid #ef4444;border-radius:0 8px 8px 0;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px;">
             <span style="font-size:18px;">⛽</span>
             <p style="margin:0;font-size:13px;color:#991b1b;">
-                Sie haben noch keine Station für heute gewählt.
-                <a href="{{ \App\Filament\App\Pages\StationWaehlen::getUrl() }}" style="font-weight:700;color:#dc2626;text-decoration:underline;">Jetzt Station wählen →</a>
+                Sie haben noch keine Tankstelle ausgewählt.
+                <a href="{{ \App\Filament\App\Pages\StationWaehlen::getUrl() }}" style="font-weight:700;color:#dc2626;text-decoration:underline;">Jetzt Tankstelle wählen →</a>
             </p>
         </div>
     @endif

@@ -1,0 +1,18 @@
+<?php
+
+namespace App\Filament\App\Resources\TeamMemberResource\Pages;
+
+use App\Filament\App\Resources\TeamMemberResource;
+use Filament\Resources\Pages\ListRecords;
+
+class ListTeamMembers extends ListRecords
+{
+    protected static string $resource = TeamMemberResource::class;
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            // Einladungs-Flow kommt separat
+        ];
+    }
+}
