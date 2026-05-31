@@ -20,6 +20,8 @@ Route::middleware(['web', 'auth'])->prefix('pdf')->name('pdf.')->group(function 
         ->name('contract.download');
     Route::get('/contract/{id}/preview', [App\Http\Controllers\ContractSigningController::class, 'previewAdmin'])
         ->name('contract.preview');
+    Route::get('/document/{id}/download', [App\Http\Controllers\DocumentSigningController::class, 'download'])
+        ->name('document.download');
 });
 
 // Mitarbeiter: eigenen Vertrag als PDF herunterladen (nur eigene Verträge)

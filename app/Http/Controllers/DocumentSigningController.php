@@ -51,4 +51,17 @@ class DocumentSigningController extends Controller
 
         abort(404);
     }
+
+    public function download(int $id): StreamedResponse
+    {
+        $document = GeneratedDocument::where('id', $id)
+            ->where('tenant_id', session('tenant_id'))
+            ->with('template')
+            ->firstOrFail();
+
+        abort_unless($document->pdf_path && Storage::disk('local')->exists($document->pdf_path), 404);
+
+        $filename = ($document->template?->name ?? 'Dokument') . '.pdf';
+        return Storage::disk('local')->download($document->pdf_path, $filename);
+    }
 }

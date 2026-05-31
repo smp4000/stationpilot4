@@ -10,6 +10,7 @@ use App\Models\Employee;
 use App\Models\EmployeeAccessLog;
 use App\Models\Station;
 use App\Models\User;
+use App\Services\OnboardingService;
 use Illuminate\Support\Facades\Hash;
 use Filament\Actions\Action;
 use Illuminate\Support\Facades\Mail;
@@ -757,6 +758,82 @@ class EmployeeResource extends Resource
                                 ->success()
                                 ->send();
                         }),
+                    // ── Onboarding-Paket versenden ────────────────────────
+                    Action::make('onboarding_paket')
+                        ->label('Onboarding-Paket senden')
+                        ->icon('heroicon-o-paper-airplane')
+                        ->color('success')
+                        ->visible(fn (Employee $record): bool =>
+                            !empty($record->email) && auth()->user()?->can('partner.employees.invite')
+                        )
+                        ->modalHeading(fn (Employee $record): string =>
+                            'Onboarding-Paket für ' . $record->first_name . ' ' . $record->last_name
+                        )
+                        ->modalDescription('Wähle Dokumente und optional einen Vertrag aus — alle Links werden in einer E-Mail gebündelt.')
+                        ->modalWidth('lg')
+                        ->form(fn (Employee $record): array => [
+                            CheckboxList::make('sub_types')
+                                ->label('Dokumente (Vorlage muss vorhanden sein)')
+                                ->options(OnboardingService::availableDocumentTypes($record->tenant_id))
+                                ->columns(1)
+                                ->bulkToggleable()
+                                ->helperText('Nur Typen mit aktiver Vorlage werden angezeigt.'),
+
+                            Select::make('contract_id')
+                                ->label('Arbeitsvertrag beilegen (optional)')
+                                ->options(function () use ($record): array {
+                                    return EmployeeContract::where('employee_id', $record->id)
+                                        ->whereIn('status', ['draft', 'sent'])
+                                        ->get()
+                                        ->mapWithKeys(fn (EmployeeContract $c): array => [
+                                            $c->id => $c->contractTypeLabel() . ' — ' . ucfirst($c->status) . ' (' . $c->created_at->format('d.m.Y') . ')',
+                                        ])
+                                        ->toArray();
+                                })
+                                ->placeholder('Kein Vertrag')
+                                ->helperText('Entwurf wird beim Versand automatisch auf "Versendet" gesetzt.'),
+                        ])
+                        ->modalSubmitActionLabel('Paket versenden')
+                        ->action(function (Employee $record, array $data): void {
+                            $subTypes = $data['sub_types'] ?? [];
+                            $contract = $data['contract_id']
+                                ? EmployeeContract::find($data['contract_id'])
+                                : null;
+
+                            if (empty($subTypes) && ! $contract) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('Bitte mindestens ein Dokument oder einen Vertrag auswählen.')
+                                    ->warning()
+                                    ->send();
+                                return;
+                            }
+
+                            $result = OnboardingService::sendPackage($record, $subTypes, $contract);
+
+                            if (!empty($result['errors'])) {
+                                foreach ($result['errors'] as $err) {
+                                    \Filament\Notifications\Notification::make()
+                                        ->title('Fehler: ' . $err)
+                                        ->danger()
+                                        ->send();
+                                }
+                            }
+
+                            $docCount      = count($result['docs']);
+                            $contractCount = count($result['contracts']);
+
+                            \Filament\Notifications\Notification::make()
+                                ->title('Onboarding-Paket versendet')
+                                ->body(
+                                    ($docCount ? $docCount . ' Dokument(e)' : '')
+                                    . ($docCount && $contractCount ? ' + ' : '')
+                                    . ($contractCount ? '1 Vertrag' : '')
+                                    . ' an ' . $record->email . ' gesendet.'
+                                )
+                                ->success()
+                                ->send();
+                        }),
+
                     Action::make('einladen')
                         ->label('Einladen')
                         ->icon('heroicon-o-envelope')
