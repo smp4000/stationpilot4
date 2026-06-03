@@ -48,7 +48,7 @@ class Employee extends Model
         'residence_permit_type', 'residence_permit_expires',
         'work_permit_granted', 'work_permit_expires',
         // System
-        'mde_pin', 'password', 'must_change_password',
+        'mde_pin', 'scan_code', 'nfc_uid', 'password', 'must_change_password',
         'invitation_token', 'invited_at', 'invitation_expires_at', 'status',
         // DSGVO
         'data_verified_at', 'retention_delete_after', 'anonymized_at',

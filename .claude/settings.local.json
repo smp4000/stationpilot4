@@ -88,7 +88,14 @@
       "Bash(php -l \"C:\\\\xampp\\\\htdocs\\\\stationpilot4\\\\app\\\\Http\\\\Middleware\\\\EnsureEmployeeAuthenticated.php\")",
       "Bash(php -l app/Http/Controllers/EmployeePortalController.php)",
       "Bash(php -l app/Http/Middleware/EnsureEmployeeAuthenticated.php)",
-      "Bash(php -l app/Mail/EmployeePasswordMail.php)"
+      "Bash(php -l app/Mail/EmployeePasswordMail.php)",
+      "Bash(Get-ChildItem -Path \"C:\\\\xampp\\\\htdocs\\\\stationpilot4\" -Directory)",
+      "Bash(xargs wc -l)",
+      "Bash(Get-ChildItem -Path \"C:\\\\xampp\\\\htdocs\\\\stationpilot4\" -Force)",
+      "Bash(Select-Object Name, Mode)",
+      "Bash(grep -E \"\\\\.php$\")",
+      "Bash(git fetch *)",
+      "Bash(git pull *)"
     ]
   }
 }
