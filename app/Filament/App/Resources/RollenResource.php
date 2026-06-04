@@ -234,7 +234,7 @@ class RollenResource extends Resource
                 ->placeholder('z.B. Buchhalter, Filialleiter-Nord')
                 ->helperText('Standard-Rollen können nicht umbenannt werden.')
                 ->disabledOn('edit')
-                ->dehydratedWhenHidden(),
+                ->dehydrated(fn (string $operation): bool => $operation === 'create'),
 
             Tabs::make('Berechtigungen')
                 ->columnSpanFull()
