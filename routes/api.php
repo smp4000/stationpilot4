@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Mde\MdeAdminController;
 use App\Http\Controllers\Mde\MdeAuthController;
 use App\Http\Controllers\Mde\MdeDeviceController;
 use App\Http\Controllers\Mde\MdeNavigationController;
@@ -40,5 +41,12 @@ Route::prefix('mde')->name('mde.')->group(function () {
         // Navigation + Kacheln (nach Mitarbeiter-Login)
         Route::get('navigation', [MdeNavigationController::class, 'index'])
             ->name('navigation');
+
+        // Admin: NFC-Chip beschreiben
+        Route::prefix('admin')->name('admin.')->group(function () {
+            Route::get('stations', [MdeAdminController::class, 'stations'])->name('stations');
+            Route::get('stations/{stationUlid}/employees', [MdeAdminController::class, 'employees'])->name('employees');
+            Route::post('employees/{employeeUlid}/nfc', [MdeAdminController::class, 'saveNfc'])->name('nfc.save');
+        });
     });
 });
