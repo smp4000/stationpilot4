@@ -35,6 +35,10 @@ Route::prefix('vertrag')->name('contract.')->group(function () {
     Route::get('/{token}/pdf',    [App\Http\Controllers\ContractSigningController::class, 'downloadPublic'])->name('sign.pdf');
 });
 
+// GoPilot MDE — Station QR-Code (nur eingeloggte Partner)
+Route::middleware(['web', 'auth'])->get('/mde/station/{ulid}/qr', [App\Http\Controllers\Mde\MdeStationQrController::class, 'show'])
+    ->name('mde.station.qr');
+
 // Allgemeines Dokument digital unterschreiben (öffentlich, Token-geschützt)
 Route::prefix('dokument')->name('document.')->group(function () {
     Route::get('/{token}',     [App\Http\Controllers\DocumentSigningController::class, 'show'])->name('sign');

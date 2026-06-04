@@ -5,8 +5,10 @@ namespace App\Filament\App\Resources\StationResource\Pages;
 use App\Filament\App\Resources\StationResource;
 use App\Filament\App\Resources\StationResource\RelationManagers\CompetitorsRelationManager;
 use App\Filament\App\Resources\StationResource\RelationManagers\FuelPricesRelationManager;
+use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\EditRecord;
+use Filament\Support\Enums\MaxWidth;
 
 class EditStation extends EditRecord
 {
@@ -15,6 +17,25 @@ class EditStation extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            // GoPilot QR-Code — Gerät mit dieser Station verbinden
+            Action::make('gopilot_qr')
+                ->label('GoPilot QR')
+                ->icon('heroicon-o-qr-code')
+                ->color('primary')
+                ->modalHeading(fn () => 'GoPilot Einrichtungs-QR — ' . $this->record->name)
+                ->modalDescription('Diesen QR-Code in der GoPilot-App scannen, um ein MDE-Gerät mit dieser Tankstelle zu verbinden.')
+                ->modalWidth(MaxWidth::Small)
+                ->modalContent(function () {
+                    $url = route('mde.station.qr', $this->record->ulid);
+                    return view('filament.mde.station-qr-modal', [
+                        'qrUrl'       => $url,
+                        'stationUlid' => $this->record->ulid,
+                        'stationName' => $this->record->name,
+                    ]);
+                })
+                ->modalSubmitAction(false)
+                ->modalCancelActionLabel('Schließen'),
+
             DeleteAction::make()
                 ->visible(fn() => auth()->user()?->can('partner.stations.delete')),
         ];

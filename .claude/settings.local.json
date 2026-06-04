@@ -95,7 +95,22 @@
       "Bash(Select-Object Name, Mode)",
       "Bash(grep -E \"\\\\.php$\")",
       "Bash(git fetch *)",
-      "Bash(git pull *)"
+      "Bash(git pull *)",
+      "Bash(git config *)",
+      "Bash(ls C:/Users/chris/AndroidStudioProjects/ 2>/dev/null || echo \"Verzeichnis nicht vorhanden\")",
+      "Bash(ls \"C:/Program Files/Android/Android Studio/\" 2>/dev/null && echo \"Android Studio gefunden\" || echo \"nicht da\")",
+      "Bash(git remote *)",
+      "Bash(git branch *)",
+      "Bash(xcopy \"C:\\\\Users\\\\chris\\\\AndroidStudioProjects\\\\gopilot\" \"C:\\\\xampp\\\\htdocs\\\\gopilot\" /E /I /H /Y)",
+      "Bash(robocopy \"C:\\\\Users\\\\chris\\\\AndroidStudioProjects\\\\gopilot\" \"C:\\\\xampp\\\\htdocs\\\\gopilot\" /S /NFL /NDL)",
+      "Bash(ls *.hprof)",
+      "Bash(find . -name \"*.hprof\" -not -path \"./.git/*\")",
+      "Bash(git rm *)",
+      "Bash(rm java_pid6156.hprof)",
+      "Bash(git filter-branch *)",
+      "Bash(git reflog *)",
+      "Bash(git gc *)",
+      "Bash(composer require *)"
     ]
   }
 }
