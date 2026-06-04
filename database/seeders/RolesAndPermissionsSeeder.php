@@ -270,6 +270,29 @@ class RolesAndPermissionsSeeder extends Seeder
             // Einstellungen
             'partner.settings.view',
             'partner.settings.edit',
+
+            // ── GoPilot App — Mitarbeiter-Berechtigungen ──────────────────
+            // Bistro
+            'employee.bistro.view',
+            'employee.bistro.orders',
+            'employee.bistro.daily',
+            'employee.bistro.delivery',
+
+            // Shop
+            'employee.shop.view',
+            'employee.shop.cashier',
+            'employee.shop.delivery',
+            'employee.shop.inventory',
+
+            // Tankstelle
+            'employee.station.view',
+            'employee.station.shift',
+            'employee.station.tank',
+            'employee.station.incident',
+
+            // Schlüssel
+            'employee.keys.view',
+            'employee.keys.handover',
         ];
     }
 }

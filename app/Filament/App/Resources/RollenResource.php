@@ -165,6 +165,42 @@ class RollenResource extends Resource
                     'partner.settings.edit' => 'Bearbeiten & Team-Verwaltung',
                 ],
             ],
+
+            // ── GoPilot App Permissions ─────────────────────────────────────
+            'perms_gopilot_bistro' => [
+                'label' => '🍽️ GoPilot — Bistro',
+                'perms' => [
+                    'employee.bistro.view'     => 'Bistro-Bereich sichtbar',
+                    'employee.bistro.orders'   => 'Bestellungen',
+                    'employee.bistro.daily'    => 'Tagesabschluss',
+                    'employee.bistro.delivery' => 'Wareneingang',
+                ],
+            ],
+            'perms_gopilot_shop' => [
+                'label' => '🏪 GoPilot — Shop',
+                'perms' => [
+                    'employee.shop.view'      => 'Shop-Bereich sichtbar',
+                    'employee.shop.cashier'   => 'Kassenabschluss',
+                    'employee.shop.delivery'  => 'Wareneingang',
+                    'employee.shop.inventory' => 'Inventur',
+                ],
+            ],
+            'perms_gopilot_station' => [
+                'label' => '⛽ GoPilot — Tankstelle',
+                'perms' => [
+                    'employee.station.view'     => 'Tankstellen-Bereich sichtbar',
+                    'employee.station.shift'    => 'Schichtprotokoll führen',
+                    'employee.station.tank'     => 'Tankkontrolle durchführen',
+                    'employee.station.incident' => 'Störungen melden',
+                ],
+            ],
+            'perms_gopilot_keys' => [
+                'label' => '🔑 GoPilot — Schlüssel & Zugang',
+                'perms' => [
+                    'employee.keys.view'     => 'Schlüssel-Übergabe sichtbar',
+                    'employee.keys.handover' => 'Schlüssel übergeben / zurücknehmen',
+                ],
+            ],
         ];
     }
 
@@ -238,7 +274,20 @@ class RollenResource extends Resource
                             ]),
                         ]),
 
-                    // ── Tab 4: Einstellungen ──────────────────────────────
+                    // ── Tab 4: GoPilot App ────────────────────────────────
+                    Tab::make('GoPilot App')
+                        ->icon('heroicon-o-device-phone-mobile')
+                        ->badge('NEU')
+                        ->schema([
+                            Grid::make(['default' => 1, 'md' => 2, 'xl' => 3])->schema([
+                                static::permCard('perms_gopilot_bistro'),
+                                static::permCard('perms_gopilot_shop'),
+                                static::permCard('perms_gopilot_station'),
+                                static::permCard('perms_gopilot_keys'),
+                            ]),
+                        ]),
+
+                    // ── Tab 5: Einstellungen ──────────────────────────────
                     Tab::make('Einstellungen')
                         ->icon('heroicon-o-cog-6-tooth')
                         ->schema([
