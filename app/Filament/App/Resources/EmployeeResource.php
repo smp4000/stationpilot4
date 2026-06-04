@@ -556,13 +556,12 @@ class EmployeeResource extends Resource
                                 : '—'),
                     ]),
 
-                // ── Tab: GoPilot App Berechtigungen ─────────────────────
+                // ── Tab: GoPilot App Rolle ───────────────────────────────
                 Tab::make('GoPilot App')
                     ->icon('heroicon-o-device-phone-mobile')
                     ->schema([
-                        Section::make('📱 GoPilot Rolle')
-                            ->description('Welche Rolle hat dieser Mitarbeiter in der GoPilot App?')
-                            ->compact()
+                        Section::make('📱 GoPilot Rolle zuweisen')
+                            ->description('Die Rolle bestimmt welche Bereiche und Kacheln in der GoPilot App sichtbar sind. Die Berechtigungen jeder Rolle werden unter Einstellungen → Rollen & Rechte verwaltet.')
                             ->schema([
                                 Select::make('gopilot_role')
                                     ->label('Rolle')
@@ -581,67 +580,19 @@ class EmployeeResource extends Resource
                                             }])
                                             ->toArray();
                                     })
-                                    ->placeholder('Keine Rolle zugewiesen')
-                                    ->helperText('Die Rolle bestimmt welche Bereiche in GoPilot sichtbar sind.')
-                                    ->dehydrated(false),
-                            ]),
+                                    ->placeholder('— Keine Rolle —')
+                                    ->helperText('Wähle die passende Rolle für diesen Mitarbeiter.')
+                                    ->dehydrated(false)
+                                    ->columnSpanFull(),
 
-                        Section::make('📋 GoPilot Einzelberechtigungen')
-                            ->description('Zusätzliche oder eingeschränkte Berechtigungen unabhängig von der Rolle.')
-                            ->compact()
-                            ->schema([
-                                Grid::make(['default' => 1, 'md' => 2])->schema([
-                                    CheckboxList::make('gopilot_perms_station')
-                                        ->label('⛽ Tankstelle')
-                                        ->options([
-                                            'employee.station.view'     => 'Tankstellen-Bereich',
-                                            'employee.station.shift'    => 'Schichtprotokoll',
-                                            'employee.station.tank'     => 'Tankkontrolle',
-                                            'employee.station.incident' => 'Störungen melden',
-                                        ])
-                                        ->bulkToggleable()
-                                        ->dehydrated(false),
-                                    CheckboxList::make('gopilot_perms_shop')
-                                        ->label('🏪 Shop')
-                                        ->options([
-                                            'employee.shop.view'      => 'Shop-Bereich',
-                                            'employee.shop.cashier'   => 'Kassenabschluss',
-                                            'employee.shop.delivery'  => 'Wareneingang',
-                                            'employee.shop.inventory' => 'Inventur',
-                                        ])
-                                        ->bulkToggleable()
-                                        ->dehydrated(false),
-                                    CheckboxList::make('gopilot_perms_bistro')
-                                        ->label('🍽️ Bistro')
-                                        ->options([
-                                            'employee.bistro.view'     => 'Bistro-Bereich',
-                                            'employee.bistro.orders'   => 'Bestellungen',
-                                            'employee.bistro.daily'    => 'Tagesabschluss',
-                                            'employee.bistro.delivery' => 'Wareneingang',
-                                        ])
-                                        ->bulkToggleable()
-                                        ->dehydrated(false),
-                                    CheckboxList::make('gopilot_perms_keys')
-                                        ->label('🔑 Schlüssel')
-                                        ->options([
-                                            'employee.keys.view'     => 'Schlüssel-Übergabe',
-                                            'employee.keys.handover' => 'Übergaben durchführen',
-                                        ])
-                                        ->bulkToggleable()
-                                        ->dehydrated(false),
-                                ]),
-                            ]),
-
-                        Section::make('ℹ️ Hinweis')
-                            ->compact()
-                            ->schema([
-                                Placeholder::make('gopilot_info')
-                                    ->label('')
+                                Placeholder::make('gopilot_role_info')
+                                    ->label('Status')
                                     ->content(fn ($record) => $record
                                         ? ($record->user_id
-                                            ? 'Berechtigungen werden dem verknüpften User-Account zugewiesen.'
-                                            : '⚠️ Kein User-Account verknüpft. Bitte zuerst "App-Zugang erstellen" verwenden.')
-                                        : 'Erst nach dem Speichern können Berechtigungen zugewiesen werden.'),
+                                            ? '✅ User-Account verknüpft — Rolle wird beim Speichern zugewiesen.'
+                                            : '⚠️ Noch kein App-Zugang. Zuerst "App-Zugang erstellen" (Tab Zugang & System) nutzen.')
+                                        : '— Erst nach dem Speichern kann eine Rolle zugewiesen werden.')
+                                    ->columnSpanFull(),
                             ]),
                     ]),
 

@@ -170,7 +170,7 @@ class EditEmployee extends EditRecord
     }
 
     /**
-     * GoPilot-Felder beim Laden vorbelegen.
+     * GoPilot Rolle beim Laden vorbelegen.
      */
     protected function mutateFormDataBeforeFill(array $data): array
     {
@@ -180,16 +180,8 @@ class EditEmployee extends EditRecord
         $tenantId = (int) session('tenant_id', 0);
         app(PermissionRegistrar::class)->setPermissionsTeamId($tenantId);
 
-        // Aktuelle Rolle
         $role = $user->roles()->where('tenant_id', $tenantId)->first();
         $data['gopilot_role'] = $role?->name;
-
-        // Aktuelle Einzelpermissions
-        $perms = $user->getDirectPermissions()->pluck('name')->toArray();
-        $data['gopilot_perms_station'] = array_values(array_filter($perms, fn ($p) => str_starts_with($p, 'employee.station.')));
-        $data['gopilot_perms_shop']    = array_values(array_filter($perms, fn ($p) => str_starts_with($p, 'employee.shop.')));
-        $data['gopilot_perms_bistro']  = array_values(array_filter($perms, fn ($p) => str_starts_with($p, 'employee.bistro.')));
-        $data['gopilot_perms_keys']    = array_values(array_filter($perms, fn ($p) => str_starts_with($p, 'employee.keys.')));
 
         return $data;
     }
@@ -207,23 +199,28 @@ class EditEmployee extends EditRecord
     }
 
     /**
-     * Nach dem Speichern: GoPilot Rolle + Permissions auf User übertragen.
+     * Nach dem Speichern: GoPilot Rolle auf User übertragen.
      */
     protected function afterSave(): void
     {
         $user = $this->record->fresh()->user;
         if (! $user) return;
 
-        $tenantId  = (int) session('tenant_id', 0);
-        $rawState  = $this->form->getRawState();
+        $tenantId = (int) session('tenant_id', 0);
+        $rawState = $this->form->getRawState();
+        $roleName = $rawState['gopilot_role'] ?? null;
 
         app(PermissionRegistrar::class)->setPermissionsTeamId($tenantId);
 
-        // ── Rolle zuweisen ──────────────────────────────────────────────────
-        $roleName = $rawState['gopilot_role'] ?? null;
+        // Alle bestehenden Tenant-Rollen des Users entfernen
+        \DB::table('model_has_roles')
+            ->where('model_type', \App\Models\User::class)
+            ->where('model_id', $user->id)
+            ->where('tenant_id', $tenantId)
+            ->delete();
+
+        // Neue Rolle zuweisen
         if ($roleName) {
-            // Alle bestehenden Tenant-Rollen entfernen und neue setzen
-            $user->roles()->wherePivot('tenant_id', $tenantId)->detach();
             $role = \Spatie\Permission\Models\Role::where('name', $roleName)
                 ->where('tenant_id', $tenantId)
                 ->first();
@@ -237,36 +234,10 @@ class EditEmployee extends EditRecord
             }
         }
 
-        // ── Einzelpermissions: erst alle employee.* entfernen, dann neue setzen ──
-        $allEmployeePerms = array_merge(
-            $rawState['gopilot_perms_station'] ?? [],
-            $rawState['gopilot_perms_shop']    ?? [],
-            $rawState['gopilot_perms_bistro']  ?? [],
-            $rawState['gopilot_perms_keys']    ?? [],
-        );
-
-        // Bestehende employee.* Direct-Permissions entfernen
-        $user->getDirectPermissions()
-            ->filter(fn ($p) => str_starts_with($p->name, 'employee.'))
-            ->each(fn ($p) => $user->revokePermissionTo($p));
-
-        // Neue setzen
-        foreach ($allEmployeePerms as $perm) {
-            $permission = \Spatie\Permission\Models\Permission::firstOrCreate(
-                ['name' => $perm, 'guard_name' => 'web']
-            );
-            \DB::table('model_has_permissions')->insertOrIgnore([
-                'permission_id' => $permission->id,
-                'model_type'    => \App\Models\User::class,
-                'model_id'      => $user->id,
-                'tenant_id'     => $tenantId,
-            ]);
-        }
-
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         Notification::make()
-            ->title('GoPilot Berechtigungen gespeichert')
+            ->title('GoPilot Rolle gespeichert')
             ->success()
             ->send();
     }
