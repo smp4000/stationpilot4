@@ -18,6 +18,7 @@ use Filament\Resources\Pages\EditRecord;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Spatie\Permission\PermissionRegistrar;
 
 class EditEmployee extends EditRecord
 {
@@ -168,6 +169,31 @@ class EditEmployee extends EditRecord
         ];
     }
 
+    /**
+     * GoPilot-Felder beim Laden vorbelegen.
+     */
+    protected function mutateFormDataBeforeFill(array $data): array
+    {
+        $user = $this->record->user;
+        if (! $user) return $data;
+
+        $tenantId = (int) session('tenant_id', 0);
+        app(PermissionRegistrar::class)->setPermissionsTeamId($tenantId);
+
+        // Aktuelle Rolle
+        $role = $user->roles()->where('tenant_id', $tenantId)->first();
+        $data['gopilot_role'] = $role?->name;
+
+        // Aktuelle Einzelpermissions
+        $perms = $user->getDirectPermissions()->pluck('name')->toArray();
+        $data['gopilot_perms_station'] = array_values(array_filter($perms, fn ($p) => str_starts_with($p, 'employee.station.')));
+        $data['gopilot_perms_shop']    = array_values(array_filter($perms, fn ($p) => str_starts_with($p, 'employee.shop.')));
+        $data['gopilot_perms_bistro']  = array_values(array_filter($perms, fn ($p) => str_starts_with($p, 'employee.bistro.')));
+        $data['gopilot_perms_keys']    = array_values(array_filter($perms, fn ($p) => str_starts_with($p, 'employee.keys.')));
+
+        return $data;
+    }
+
     protected function mutateFormDataBeforeSave(array $data): array
     {
         if (empty($data['mde_pin'])) {
@@ -178,6 +204,71 @@ class EditEmployee extends EditRecord
         unset($data['user_id']);
 
         return $data;
+    }
+
+    /**
+     * Nach dem Speichern: GoPilot Rolle + Permissions auf User übertragen.
+     */
+    protected function afterSave(): void
+    {
+        $user = $this->record->fresh()->user;
+        if (! $user) return;
+
+        $tenantId  = (int) session('tenant_id', 0);
+        $rawState  = $this->form->getRawState();
+
+        app(PermissionRegistrar::class)->setPermissionsTeamId($tenantId);
+
+        // ── Rolle zuweisen ──────────────────────────────────────────────────
+        $roleName = $rawState['gopilot_role'] ?? null;
+        if ($roleName) {
+            // Alle bestehenden Tenant-Rollen entfernen und neue setzen
+            $user->roles()->wherePivot('tenant_id', $tenantId)->detach();
+            $role = \Spatie\Permission\Models\Role::where('name', $roleName)
+                ->where('tenant_id', $tenantId)
+                ->first();
+            if ($role) {
+                \DB::table('model_has_roles')->insert([
+                    'role_id'    => $role->id,
+                    'model_type' => \App\Models\User::class,
+                    'model_id'   => $user->id,
+                    'tenant_id'  => $tenantId,
+                ]);
+            }
+        }
+
+        // ── Einzelpermissions: erst alle employee.* entfernen, dann neue setzen ──
+        $allEmployeePerms = array_merge(
+            $rawState['gopilot_perms_station'] ?? [],
+            $rawState['gopilot_perms_shop']    ?? [],
+            $rawState['gopilot_perms_bistro']  ?? [],
+            $rawState['gopilot_perms_keys']    ?? [],
+        );
+
+        // Bestehende employee.* Direct-Permissions entfernen
+        $user->getDirectPermissions()
+            ->filter(fn ($p) => str_starts_with($p->name, 'employee.'))
+            ->each(fn ($p) => $user->revokePermissionTo($p));
+
+        // Neue setzen
+        foreach ($allEmployeePerms as $perm) {
+            $permission = \Spatie\Permission\Models\Permission::firstOrCreate(
+                ['name' => $perm, 'guard_name' => 'web']
+            );
+            \DB::table('model_has_permissions')->insertOrIgnore([
+                'permission_id' => $permission->id,
+                'model_type'    => \App\Models\User::class,
+                'model_id'      => $user->id,
+                'tenant_id'     => $tenantId,
+            ]);
+        }
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        Notification::make()
+            ->title('GoPilot Berechtigungen gespeichert')
+            ->success()
+            ->send();
     }
 
     protected function getRedirectUrl(): string

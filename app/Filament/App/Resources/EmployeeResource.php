@@ -37,6 +37,8 @@ use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 use Filament\Actions\ActionGroup;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -552,6 +554,95 @@ class EmployeeResource extends Resource
                                       . ($record->user ? ' (' . $record->user->email . ')' : '')
                                     : '❌ Kein App-Panel-Zugang. Button „App-Zugang erstellen" in der Zeilenaktion nutzen.')
                                 : '—'),
+                    ]),
+
+                // ── Tab: GoPilot App Berechtigungen ─────────────────────
+                Tab::make('GoPilot App')
+                    ->icon('heroicon-o-device-phone-mobile')
+                    ->schema([
+                        Section::make('📱 GoPilot Rolle')
+                            ->description('Welche Rolle hat dieser Mitarbeiter in der GoPilot App?')
+                            ->compact()
+                            ->schema([
+                                Select::make('gopilot_role')
+                                    ->label('Rolle')
+                                    ->options(function () {
+                                        $tenantId = (int) session('tenant_id', 0);
+                                        return Role::where('tenant_id', $tenantId)
+                                            ->where('guard_name', 'web')
+                                            ->pluck('name', 'name')
+                                            ->mapWithKeys(fn ($name) => [$name => match($name) {
+                                                'partner_owner'   => '👑 Inhaber',
+                                                'partner_manager' => '🏢 Manager',
+                                                'station_manager' => '🏪 Stationsleiter',
+                                                'employee'        => '👤 Mitarbeiter',
+                                                'tax_advisor'     => '📊 Steuerberater',
+                                                default           => $name,
+                                            }])
+                                            ->toArray();
+                                    })
+                                    ->placeholder('Keine Rolle zugewiesen')
+                                    ->helperText('Die Rolle bestimmt welche Bereiche in GoPilot sichtbar sind.')
+                                    ->dehydrated(false),
+                            ]),
+
+                        Section::make('📋 GoPilot Einzelberechtigungen')
+                            ->description('Zusätzliche oder eingeschränkte Berechtigungen unabhängig von der Rolle.')
+                            ->compact()
+                            ->schema([
+                                Grid::make(['default' => 1, 'md' => 2])->schema([
+                                    CheckboxList::make('gopilot_perms_station')
+                                        ->label('⛽ Tankstelle')
+                                        ->options([
+                                            'employee.station.view'     => 'Tankstellen-Bereich',
+                                            'employee.station.shift'    => 'Schichtprotokoll',
+                                            'employee.station.tank'     => 'Tankkontrolle',
+                                            'employee.station.incident' => 'Störungen melden',
+                                        ])
+                                        ->bulkToggleable()
+                                        ->dehydrated(false),
+                                    CheckboxList::make('gopilot_perms_shop')
+                                        ->label('🏪 Shop')
+                                        ->options([
+                                            'employee.shop.view'      => 'Shop-Bereich',
+                                            'employee.shop.cashier'   => 'Kassenabschluss',
+                                            'employee.shop.delivery'  => 'Wareneingang',
+                                            'employee.shop.inventory' => 'Inventur',
+                                        ])
+                                        ->bulkToggleable()
+                                        ->dehydrated(false),
+                                    CheckboxList::make('gopilot_perms_bistro')
+                                        ->label('🍽️ Bistro')
+                                        ->options([
+                                            'employee.bistro.view'     => 'Bistro-Bereich',
+                                            'employee.bistro.orders'   => 'Bestellungen',
+                                            'employee.bistro.daily'    => 'Tagesabschluss',
+                                            'employee.bistro.delivery' => 'Wareneingang',
+                                        ])
+                                        ->bulkToggleable()
+                                        ->dehydrated(false),
+                                    CheckboxList::make('gopilot_perms_keys')
+                                        ->label('🔑 Schlüssel')
+                                        ->options([
+                                            'employee.keys.view'     => 'Schlüssel-Übergabe',
+                                            'employee.keys.handover' => 'Übergaben durchführen',
+                                        ])
+                                        ->bulkToggleable()
+                                        ->dehydrated(false),
+                                ]),
+                            ]),
+
+                        Section::make('ℹ️ Hinweis')
+                            ->compact()
+                            ->schema([
+                                Placeholder::make('gopilot_info')
+                                    ->label('')
+                                    ->content(fn ($record) => $record
+                                        ? ($record->user_id
+                                            ? 'Berechtigungen werden dem verknüpften User-Account zugewiesen.'
+                                            : '⚠️ Kein User-Account verknüpft. Bitte zuerst "App-Zugang erstellen" verwenden.')
+                                        : 'Erst nach dem Speichern können Berechtigungen zugewiesen werden.'),
+                            ]),
                     ]),
 
             ])->columnSpanFull(),
