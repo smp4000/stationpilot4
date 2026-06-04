@@ -9,6 +9,7 @@ use App\Models\Tenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Laravel\Sanctum\PersonalAccessToken;
 
 /**
  * Gerät an Station registrieren.
@@ -46,7 +47,10 @@ class MdeDeviceController extends Controller
         }
 
         $tenant = Tenant::find($station->tenant_id);
-        if (! $tenant || $tenant->isArchived()) {
+        if (! $tenant) {
+            return response()->json(['message' => 'Mandant nicht gefunden.'], 403);
+        }
+        if (in_array($tenant->subscription_status ?? '', ['archived', 'cancelled'])) {
             return response()->json(['message' => 'Mandant gesperrt.'], 403);
         }
 
@@ -68,7 +72,7 @@ class MdeDeviceController extends Controller
             ]);
             // Alten Token löschen und neu ausstellen
             $tokenName = 'mde-device-' . $device->ulid;
-            $device->tenant->owner?->tokens()->where('name', $tokenName)->delete();
+            PersonalAccessToken::where('name', $tokenName)->delete();
         } else {
             $device = MdeDevice::create([
                 'tenant_id'    => $tenant->id,
@@ -85,7 +89,15 @@ class MdeDeviceController extends Controller
         $tokenName = 'mde-device-' . $device->ulid;
         $device->update(['token_name' => $tokenName]);
 
-        $token = $tenant->owner->createToken($tokenName, ['mde-device']);
+        // Token dem Tenant-Owner zuweisen (Fallback: erster aktiver User des Tenants)
+        $tokenUser = $tenant->owner
+            ?? \App\Models\User::where('tenant_id', $tenant->id)->first();
+
+        if (! $tokenUser) {
+            return response()->json(['message' => 'Kein Benutzer für diesen Mandanten gefunden.'], 500);
+        }
+
+        $token = $tokenUser->createToken($tokenName, ['mde-device']);
 
         return response()->json([
             'message'      => 'Gerät erfolgreich registriert.',
