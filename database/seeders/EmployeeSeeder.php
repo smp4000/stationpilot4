@@ -4,7 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Employee;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class EmployeeSeeder extends Seeder
 {
@@ -38,7 +38,7 @@ class EmployeeSeeder extends Seeder
                 'wage_amount'      => '4500',
                 'payment_interval' => 'monatlich',
                 'mde_pin'          => '1234',
-                'scan_code'        => 'CW-001',
+                'scan_code'        => strtoupper(substr(Str::uuid()->toString(), 0, 8)),
                 'status'           => 'aktiv',
                 'employee_status'  => 'aktiv',
             ],
@@ -66,7 +66,7 @@ class EmployeeSeeder extends Seeder
                 'wage_amount'      => '3200',
                 'payment_interval' => 'monatlich',
                 'mde_pin'          => '2345',
-                'scan_code'        => 'AW-002',
+                'scan_code'        => strtoupper(substr(Str::uuid()->toString(), 0, 8)),
                 'status'           => 'aktiv',
                 'employee_status'  => 'aktiv',
             ],
@@ -94,7 +94,7 @@ class EmployeeSeeder extends Seeder
                 'wage_amount'      => '13.50',
                 'payment_interval' => 'monatlich',
                 'mde_pin'          => '3456',
-                'scan_code'        => 'LSW-003',
+                'scan_code'        => strtoupper(substr(Str::uuid()->toString(), 0, 8)),
                 'status'           => 'aktiv',
                 'employee_status'  => 'aktiv',
             ],
@@ -122,7 +122,7 @@ class EmployeeSeeder extends Seeder
                 'wage_amount'      => '14.00',
                 'payment_interval' => 'monatlich',
                 'mde_pin'          => '4567',
-                'scan_code'        => 'MM-004',
+                'scan_code'        => strtoupper(substr(Str::uuid()->toString(), 0, 8)),
                 'status'           => 'aktiv',
                 'employee_status'  => 'aktiv',
             ],
@@ -150,7 +150,7 @@ class EmployeeSeeder extends Seeder
                 'wage_amount'      => '13.00',
                 'payment_interval' => 'monatlich',
                 'mde_pin'          => '5678',
-                'scan_code'        => 'EM-005',
+                'scan_code'        => strtoupper(substr(Str::uuid()->toString(), 0, 8)),
                 'status'           => 'aktiv',
                 'employee_status'  => 'aktiv',
             ],
