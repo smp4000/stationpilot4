@@ -8,7 +8,6 @@ use App\Filament\App\Resources\StationResource\RelationManagers\FuelPricesRelati
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\EditRecord;
-use Filament\Support\Enums\MaxWidth;
 
 class EditStation extends EditRecord
 {
@@ -24,7 +23,7 @@ class EditStation extends EditRecord
                 ->color('primary')
                 ->modalHeading(fn () => 'GoPilot Einrichtungs-QR — ' . $this->record->name)
                 ->modalDescription('Diesen QR-Code in der GoPilot-App scannen, um ein MDE-Gerät mit dieser Tankstelle zu verbinden.')
-                ->modalWidth(MaxWidth::Small)
+                ->modalWidth('sm')
                 ->modalContent(function () {
                     $url = route('mde.station.qr', $this->record->ulid);
                     return view('filament.mde.station-qr-modal', [

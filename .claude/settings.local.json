@@ -110,7 +110,14 @@
       "Bash(git filter-branch *)",
       "Bash(git reflog *)",
       "Bash(git gc *)",
-      "Bash(composer require *)"
+      "Bash(composer require *)",
+      "Bash(powershell -Command \"\\(Get-Content .env\\) -replace 'APP_URL=http://192.168.178.166:8000', 'APP_URL=http://localhost:8000' | Set-Content .env\")",
+      "Bash(ipconfig)",
+      "Bash(findstr \"IPv4\")",
+      "Bash(powershell -Command \"\\(Get-Content .env\\) -replace 'APP_URL=.*', 'APP_URL=http://192.168.178.97:8000' | Set-Content .env\")",
+      "Bash(powershell -Command \"\\(Get-Content app/build.gradle.kts\\) -replace '192\\\\.168\\\\.178\\\\.\\\\d+', '192.168.178.97' | Set-Content app/build.gradle.kts\")",
+      "Bash(netstat -ano)",
+      "Bash(findstr \":8000\")"
     ]
   }
 }

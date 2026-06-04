@@ -94,11 +94,19 @@ class Employee extends Model
 
     // ─── Boot ──────────────────────────────────────────────────────────────
 
+    protected $attributes = [
+        'status'          => 'neu',
+        'employee_status' => 'aktiv',
+    ];
+
     protected static function booted(): void
     {
         static::creating(function (Employee $e) {
             if (empty($e->ulid)) {
                 $e->ulid = (string) Str::ulid();
+            }
+            if (empty($e->status)) {
+                $e->status = 'neu';
             }
         });
     }
