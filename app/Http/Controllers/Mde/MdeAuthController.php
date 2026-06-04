@@ -84,13 +84,17 @@ class MdeAuthController extends Controller
         }
 
         // Zugriffs-Log schreiben
-        $employee->accessLog()->create([
-            'accessed_by'  => null,
-            'accessed_at'  => now(),
-            'type'         => 'mde_login',
-            'app_version'  => $request->header('X-App-Version'),
-            'device_info'  => $device->device_name . ' (' . $device->device_model . ')',
-        ]);
+        try {
+            $employee->accessLog()->create([
+                'accessed_by' => null,
+                'accessed_at' => now(),
+                'action'      => 'mde_login',
+                'user_agent'  => $device->device_name . ' (' . ($device->device_model ?? 'MDE') . ')',
+                'ip_address'  => $request->ip(),
+            ]);
+        } catch (\Throwable) {
+            // Log-Fehler darf Login nicht blockieren
+        }
 
         $device->touchLastSeen();
 
