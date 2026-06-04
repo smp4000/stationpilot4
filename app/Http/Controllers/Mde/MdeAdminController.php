@@ -20,16 +20,41 @@ use Illuminate\Support\Facades\Validator;
 class MdeAdminController extends Controller
 {
     /**
+     * Tenant-ID aus dem Request ermitteln.
+     * Weg: Auth-User → token_name → MdeDevice → tenant_id
+     * Fallback: Auth-User → tenant_id direkt
+     */
+    private function resolveTenantId(Request $request): ?int
+    {
+        $user = $request->user();
+        if (! $user) return null;
+
+        // Über MDE-Device-Token
+        $tokenName = $user->tokens()
+            ->where('name', 'like', 'mde-device-%')
+            ->latest()
+            ->value('name');
+
+        if ($tokenName) {
+            $device = MdeDevice::where('token_name', $tokenName)->first();
+            if ($device) return $device->tenant_id;
+        }
+
+        // Fallback: tenant_id direkt vom User
+        return $user->tenant_id ?? null;
+    }
+
+    /**
      * Alle aktiven Stationen des Tenants.
      */
     public function stations(Request $request): JsonResponse
     {
-        $device = $this->resolveDevice($request);
-        if (! $device) {
-            return response()->json(['message' => 'Gerät nicht registriert.'], 401);
+        $tenantId = $this->resolveTenantId($request);
+        if (! $tenantId) {
+            return response()->json(['message' => 'Mandant nicht gefunden.'], 401);
         }
 
-        $stations = Station::where('tenant_id', $device->tenant_id)
+        $stations = Station::where('tenant_id', $tenantId)
             ->where('is_active', true)
             ->orderBy('name')
             ->get(['id', 'ulid', 'name', 'city', 'street']);
@@ -42,16 +67,16 @@ class MdeAdminController extends Controller
      */
     public function employees(Request $request, string $stationUlid): JsonResponse
     {
-        $device = $this->resolveDevice($request);
-        if (! $device) {
-            return response()->json(['message' => 'Gerät nicht registriert.'], 401);
+        $tenantId = $this->resolveTenantId($request);
+        if (! $tenantId) {
+            return response()->json(['message' => 'Mandant nicht gefunden.'], 401);
         }
 
         $station = Station::where('ulid', $stationUlid)
-            ->where('tenant_id', $device->tenant_id)
+            ->where('tenant_id', $tenantId)
             ->firstOrFail();
 
-        $employees = Employee::where('tenant_id', $device->tenant_id)
+        $employees = Employee::where('tenant_id', $tenantId)
             ->where(function ($q) use ($station) {
                 $q->where('station_id', $station->id)
                   ->orWhereHas('stations', fn ($s) => $s->where('gas_stations.id', $station->id));
@@ -75,14 +100,12 @@ class MdeAdminController extends Controller
 
     /**
      * NFC-UID eines Mitarbeiters speichern (nach Chip-Beschreibung).
-     *
-     * Body: { "nfc_uid": "A1B2C3D4", "scan_code": "3A18FC6E" }
      */
     public function saveNfc(Request $request, string $employeeUlid): JsonResponse
     {
-        $device = $this->resolveDevice($request);
-        if (! $device) {
-            return response()->json(['message' => 'Gerät nicht registriert.'], 401);
+        $tenantId = $this->resolveTenantId($request);
+        if (! $tenantId) {
+            return response()->json(['message' => 'Mandant nicht gefunden.'], 401);
         }
 
         $v = Validator::make($request->all(), [
@@ -95,13 +118,12 @@ class MdeAdminController extends Controller
         }
 
         $employee = Employee::where('ulid', $employeeUlid)
-            ->where('tenant_id', $device->tenant_id)
+            ->where('tenant_id', $tenantId)
             ->firstOrFail();
 
-        // Prüfen ob NFC-UID schon einem anderen Mitarbeiter gehört
         $existing = Employee::where('nfc_uid', strtoupper($request->nfc_uid))
             ->where('id', '!=', $employee->id)
-            ->where('tenant_id', $device->tenant_id)
+            ->where('tenant_id', $tenantId)
             ->first();
 
         if ($existing) {
@@ -123,12 +145,5 @@ class MdeAdminController extends Controller
                 'nfc_uid' => $employee->nfc_uid,
             ],
         ]);
-    }
-
-    private function resolveDevice(Request $request): ?MdeDevice
-    {
-        $tokenName = $request->user()?->tokens()->latest()->value('name');
-        if (! $tokenName) return null;
-        return MdeDevice::where('token_name', $tokenName)->first();
     }
 }
