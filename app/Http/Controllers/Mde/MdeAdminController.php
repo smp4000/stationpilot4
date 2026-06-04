@@ -9,6 +9,7 @@ use App\Models\Station;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Laravel\Sanctum\PersonalAccessToken;
 
 /**
  * Admin-Funktionen für GoPilot MDE App.
@@ -26,22 +27,18 @@ class MdeAdminController extends Controller
      */
     private function resolveTenantId(Request $request): ?int
     {
-        $user = $request->user();
-        if (! $user) return null;
-
-        // Über MDE-Device-Token
-        $tokenName = $user->tokens()
-            ->where('name', 'like', 'mde-device-%')
-            ->latest()
-            ->value('name');
-
-        if ($tokenName) {
-            $device = MdeDevice::where('token_name', $tokenName)->first();
-            if ($device) return $device->tenant_id;
+        // Weg 1: Bearer-Token → PersonalAccessToken → MdeDevice → tenant_id
+        $bearerToken = $request->bearerToken();
+        if ($bearerToken) {
+            $accessToken = PersonalAccessToken::findToken($bearerToken);
+            if ($accessToken) {
+                $device = MdeDevice::where('token_name', $accessToken->name)->first();
+                if ($device) return $device->tenant_id;
+            }
         }
 
-        // Fallback: tenant_id direkt vom User
-        return $user->tenant_id ?? null;
+        // Weg 2: Auth-User → tenant_id (Fallback)
+        return $request->user()?->tenant_id ?? null;
     }
 
     /**
