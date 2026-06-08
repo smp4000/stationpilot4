@@ -11,6 +11,7 @@ use App\Models\EmployeeAccessLog;
 use App\Models\Station;
 use App\Models\User;
 use App\Services\OnboardingService;
+use App\Support\RolePermissions;
 use Illuminate\Support\Facades\Hash;
 use Filament\Actions\Action;
 use Illuminate\Support\Facades\Mail;
@@ -556,48 +557,63 @@ class EmployeeResource extends Resource
                                 : '—'),
                     ]),
 
-                // ── Tab: GoPilot App Rolle ───────────────────────────────
-                Tab::make('GoPilot App')
-                    ->icon('heroicon-o-device-phone-mobile')
+                // ── Tab: Rollen & Rechte (Web + GoPilot) ─────────────────
+                Tab::make('Rollen & Rechte')
+                    ->icon('heroicon-o-shield-check')
                     ->schema([
-                        Section::make('📱 GoPilot Rolle zuweisen')
-                            ->description('Die Rolle bestimmt welche Bereiche und Kacheln in der GoPilot App sichtbar sind. Die Berechtigungen jeder Rolle werden unter Einstellungen → Rollen & Rechte verwaltet.')
+                        Section::make('💻 Web-Rolle (StationPilot /app)')
+                            ->description('Bestimmt, was der Mitarbeiter im Web-Panel sehen und tun darf. Verwaltung unter Einstellungen → Web-Rollen.')
+                            ->schema([
+                                Select::make('web_role')
+                                    ->label('Web-Rolle')
+                                    ->options(fn () => static::roleOptions(RolePermissions::SCOPE_WEB))
+                                    ->placeholder('— Keine Web-Rolle —')
+                                    ->helperText('Standard für reine Mitarbeiter: „Mitarbeiter".')
+                                    ->dehydrated(false)
+                                    ->columnSpanFull(),
+                            ]),
+
+                        Section::make('📱 GoPilot-Rolle (Android-App)')
+                            ->description('Bestimmt, welche Bereiche und Kacheln in der GoPilot App sichtbar sind. Verwaltung unter Einstellungen → GoPilot-Rollen.')
                             ->schema([
                                 Select::make('gopilot_role')
-                                    ->label('Rolle')
-                                    ->options(function () {
-                                        $tenantId = (int) session('tenant_id', 0);
-                                        return Role::where('tenant_id', $tenantId)
-                                            ->where('guard_name', 'web')
-                                            ->pluck('name', 'name')
-                                            ->mapWithKeys(fn ($name) => [$name => match($name) {
-                                                'partner_owner'   => '👑 Inhaber',
-                                                'partner_manager' => '🏢 Manager',
-                                                'station_manager' => '🏪 Stationsleiter',
-                                                'employee'        => '👤 Mitarbeiter',
-                                                'tax_advisor'     => '📊 Steuerberater',
-                                                default           => $name,
-                                            }])
-                                            ->toArray();
-                                    })
-                                    ->placeholder('— Keine Rolle —')
-                                    ->helperText('Wähle die passende Rolle für diesen Mitarbeiter.')
+                                    ->label('GoPilot-Rolle')
+                                    ->options(fn () => static::roleOptions(RolePermissions::SCOPE_GOPILOT))
+                                    ->placeholder('— Keine GoPilot-Rolle —')
+                                    ->helperText('Leer lassen, wenn der Mitarbeiter die App nicht nutzt.')
                                     ->dehydrated(false)
                                     ->columnSpanFull(),
 
-                                Placeholder::make('gopilot_role_info')
+                                Placeholder::make('role_info')
                                     ->label('Status')
                                     ->content(fn ($record) => $record
                                         ? ($record->user_id
-                                            ? '✅ User-Account verknüpft — Rolle wird beim Speichern zugewiesen.'
-                                            : '⚠️ Noch kein App-Zugang. Zuerst "App-Zugang erstellen" (Tab Zugang & System) nutzen.')
-                                        : '— Erst nach dem Speichern kann eine Rolle zugewiesen werden.')
+                                            ? '✅ App-Zugang verknüpft — Rollen werden beim Speichern zugewiesen.'
+                                            : '⚠️ Noch kein App-Zugang. Zuerst „App-Zugang erstellen" (Tab Zugang & System) nutzen.')
+                                        : '— Erst nach dem Speichern können Rollen zugewiesen werden.')
                                     ->columnSpanFull(),
                             ]),
                     ]),
 
             ])->columnSpanFull(),
         ]);
+    }
+
+    /**
+     * Auswahloptionen für eine Rollen-Dropdown, gefiltert nach Bereich (web|gopilot).
+     * Liefert [name => Anzeige-Label] der Rollen des aktuellen Mandanten.
+     */
+    public static function roleOptions(string $scope): array
+    {
+        $tenantId = (int) session('tenant_id', 0);
+
+        return Role::where('tenant_id', $tenantId)
+            ->where('guard_name', 'web')
+            ->where('scope', $scope)
+            ->orderBy('name')
+            ->pluck('name')
+            ->mapWithKeys(fn (string $name): array => [$name => RolePermissions::roleLabel($name)])
+            ->toArray();
     }
 
     // ─────────────────────────────────────────────

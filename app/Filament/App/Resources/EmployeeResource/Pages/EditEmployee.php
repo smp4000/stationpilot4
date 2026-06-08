@@ -170,7 +170,7 @@ class EditEmployee extends EditRecord
     }
 
     /**
-     * GoPilot Rolle beim Laden vorbelegen.
+     * Web- und GoPilot-Rolle beim Laden vorbelegen.
      */
     protected function mutateFormDataBeforeFill(array $data): array
     {
@@ -180,8 +180,9 @@ class EditEmployee extends EditRecord
         $tenantId = (int) session('tenant_id', 0);
         app(PermissionRegistrar::class)->setPermissionsTeamId($tenantId);
 
-        $role = $user->roles()->where('tenant_id', $tenantId)->first();
-        $data['gopilot_role'] = $role?->name;
+        $roles = $user->roles()->where('roles.tenant_id', $tenantId)->get();
+        $data['web_role']     = $roles->firstWhere('scope', \App\Support\RolePermissions::SCOPE_WEB)?->name;
+        $data['gopilot_role'] = $roles->firstWhere('scope', \App\Support\RolePermissions::SCOPE_GOPILOT)?->name;
 
         return $data;
     }
@@ -199,7 +200,8 @@ class EditEmployee extends EditRecord
     }
 
     /**
-     * Nach dem Speichern: GoPilot Rolle auf User übertragen.
+     * Nach dem Speichern: Web- und GoPilot-Rolle auf den User-Account übertragen.
+     * Pro Bereich (scope) maximal eine Rolle.
      */
     protected function afterSave(): void
     {
@@ -208,19 +210,23 @@ class EditEmployee extends EditRecord
 
         $tenantId = (int) session('tenant_id', 0);
         $rawState = $this->form->getRawState();
-        $roleName = $rawState['gopilot_role'] ?? null;
 
         app(PermissionRegistrar::class)->setPermissionsTeamId($tenantId);
 
-        // Alle bestehenden Tenant-Rollen des Users entfernen
+        // Alle bestehenden Tenant-Rollen des Users entfernen …
         \DB::table('model_has_roles')
             ->where('model_type', \App\Models\User::class)
             ->where('model_id', $user->id)
             ->where('tenant_id', $tenantId)
             ->delete();
 
-        // Neue Rolle zuweisen
-        if ($roleName) {
+        // … und Web- + GoPilot-Rolle (sofern gewählt) neu zuweisen.
+        $roleNames = array_filter([
+            $rawState['web_role']     ?? null,
+            $rawState['gopilot_role'] ?? null,
+        ]);
+
+        foreach ($roleNames as $roleName) {
             $role = \Spatie\Permission\Models\Role::where('name', $roleName)
                 ->where('tenant_id', $tenantId)
                 ->first();
@@ -237,7 +243,8 @@ class EditEmployee extends EditRecord
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         Notification::make()
-            ->title('GoPilot Rolle gespeichert')
+            ->title('Rollen gespeichert')
+            ->body('Web- und GoPilot-Rolle wurden aktualisiert.')
             ->success()
             ->send();
     }

@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Support\RolePermissions;
 use Illuminate\Database\Seeder;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Spatie\Permission\Models\Permission;
@@ -98,8 +99,12 @@ class RolesAndPermissionsSeeder extends Seeder
     }
 
     /**
-     * Erstellt alle 5 Mandanten-Rollen für einen neuen Mandanten.
-     * Wird bei Tenant-Erstellung aufgerufen.
+     * Erstellt alle Standard-Rollen für einen Mandanten – getrennt nach Bereich:
+     *   - Web-Rollen   (scope "web")     steuern das Filament /app-Panel    (partner.*)
+     *   - GoPilot-Rollen (scope "gopilot") steuern die GoPilot Android-App  (employee.*)
+     *
+     * Idempotent: kann jederzeit erneut aufgerufen werden (z.B. roles:sync-tenants),
+     * um bestehende Mandanten auf den aktuellen Stand zu bringen.
      *
      * @param  int  $tenantId  BIGINT ID des Mandanten
      */
@@ -108,62 +113,21 @@ class RolesAndPermissionsSeeder extends Seeder
         app(PermissionRegistrar::class)->setPermissionsTeamId($tenantId);
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
-        $all = self::getPartnerPermissions();
+        // ── Web-Rollen (partner.*) ───────────────────────────────────────────
+        foreach (RolePermissions::webStandardRoles() as $name => $perms) {
+            $role = Role::findOrCreate($name, 'web');
+            $role->scope = RolePermissions::SCOPE_WEB;
+            $role->save();
+            $role->syncPermissions($perms);
+        }
 
-        // Inhaber — Voller Zugriff auf alles
-        $owner = Role::findOrCreate('partner_owner', 'web');
-        $owner->syncPermissions($all);
-
-        // Manager — Wie Owner, aber kein Billing
-        $manager = Role::findOrCreate('partner_manager', 'web');
-        $manager->syncPermissions(
-            array_values(array_filter($all, fn($p) => ! str_starts_with($p, 'partner.billing')))
-        );
-
-        // Stationsleiter — Stationen + Mitarbeiter verwalten + Verträge einsehen + Schlüssel + MDE
-        $stationMgr = Role::findOrCreate('station_manager', 'web');
-        $stationMgr->syncPermissions([
-            'partner.dashboard.view',
-            'partner.stations.list',
-            'partner.stations.view',
-            'partner.employees.list',
-            'partner.employees.view',
-            'partner.employees.invite',
-            'partner.contracts.list',
-            'partner.contracts.view',
-            'partner.documents.list',
-            'partner.documents.view',
-            'partner.keys.list',
-            'partner.keys.view',
-            'partner.keys.create',
-            'partner.mde.list',
-            'partner.mde.view',
-            'partner.mde.assign',
-            'partner.mde.reports',
-            'partner.reports.view',
-        ]);
-
-        // Mitarbeiter — Dashboard + Stationen ansehen (Liste + Detailansicht)
-        $employee = Role::findOrCreate('employee', 'web');
-        $employee->syncPermissions([
-            'partner.dashboard.view',
-            'partner.stations.list',
-            'partner.stations.view',
-        ]);
-
-        // Steuerberater — Mitarbeiter + Verträge lesen + Berichte exportieren
-        $taxAdvisor = Role::findOrCreate('tax_advisor', 'web');
-        $taxAdvisor->syncPermissions([
-            'partner.dashboard.view',
-            'partner.employees.list',
-            'partner.employees.view',
-            'partner.contracts.list',
-            'partner.contracts.view',
-            'partner.documents.list',
-            'partner.documents.view',
-            'partner.reports.view',
-            'partner.reports.export',
-        ]);
+        // ── GoPilot-Rollen (employee.*) ──────────────────────────────────────
+        foreach (RolePermissions::gopilotStandardRoles() as $name => $perms) {
+            $role = Role::findOrCreate($name, 'web');
+            $role->scope = RolePermissions::SCOPE_GOPILOT;
+            $role->save();
+            $role->syncPermissions($perms);
+        }
 
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
     }
@@ -200,99 +164,12 @@ class RolesAndPermissionsSeeder extends Seeder
     }
 
     /**
-     * Alle Partner Permissions.
+     * Alle Mandanten-Permissions (Web + GoPilot) aus dem zentralen Katalog.
+     * Wird in run() global registriert. Die Aufteilung nach Bereich erfolgt
+     * über App\Support\RolePermissions::webPermissions() / gopilotPermissions().
      */
     public static function getPartnerPermissions(): array
     {
-        return [
-            // Dashboard
-            'partner.dashboard.view',
-
-            // Stationen
-            'partner.stations.list',
-            'partner.stations.view',
-            'partner.stations.create',
-            'partner.stations.edit',
-            'partner.stations.delete',
-
-            // Personal
-            'partner.employees.list',
-            'partner.employees.view',
-            'partner.employees.create',
-            'partner.employees.edit',
-            'partner.employees.delete',
-            'partner.employees.invite',
-            'partner.employees.approve',
-            'partner.employees.terminate',
-
-            // Verträge
-            'partner.contracts.list',
-            'partner.contracts.view',
-            'partner.contracts.create',
-            'partner.contracts.edit',
-            'partner.contracts.delete',
-            'partner.contracts.send',
-
-            // Generierte Dokumente
-            'partner.documents.list',
-            'partner.documents.view',
-            'partner.documents.create',
-            'partner.documents.delete',
-
-            // Dokument-Vorlagen
-            'partner.document_templates.list',
-            'partner.document_templates.create',
-            'partner.document_templates.edit',
-            'partner.document_templates.delete',
-
-            // Schlüssel / Zugangsdaten
-            'partner.keys.list',
-            'partner.keys.view',
-            'partner.keys.create',
-            'partner.keys.edit',
-            'partner.keys.delete',
-
-            // MDE-Gerät / Android-App
-            'partner.mde.list',           // MDE-Aktivitäten / Logs einsehen
-            'partner.mde.view',           // Einzelne Aktivität details
-            'partner.mde.manage',         // MDE-Zugänge verwalten (PIN, Scan-Code)
-            'partner.mde.assign',         // MDE-Gerät einem Mitarbeiter zuweisen
-            'partner.mde.reports',        // MDE-Berichte / Schichtprotokolle
-
-            // Billing
-            'partner.billing.view',
-            'partner.billing.manage',
-
-            // Berichte
-            'partner.reports.view',
-            'partner.reports.export',
-
-            // Einstellungen
-            'partner.settings.view',
-            'partner.settings.edit',
-
-            // ── GoPilot App — Mitarbeiter-Berechtigungen ──────────────────
-            // Bistro
-            'employee.bistro.view',
-            'employee.bistro.orders',
-            'employee.bistro.daily',
-            'employee.bistro.delivery',
-
-            // Shop
-            'employee.shop.view',
-            'employee.shop.cashier',
-            'employee.shop.delivery',
-            'employee.shop.inventory',
-
-            // Tankstelle
-            'employee.station.view',
-            'employee.station.shift',
-            'employee.station.tank',
-            'employee.station.incident',
-
-            // Schlüssel
-            'employee.keys.view',
-            'employee.keys.handover',
-        ];
+        return RolePermissions::all();
     }
 }

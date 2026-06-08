@@ -146,7 +146,7 @@ class GeneratedDocumentResource extends Resource
 
             ])
             ->defaultSort('generated_at', 'desc')
-            ->paginate(25);
+            ->defaultPaginationPageOption(25);
     }
 
     // ─── Query ───────────────────────────────────────────────────────────────

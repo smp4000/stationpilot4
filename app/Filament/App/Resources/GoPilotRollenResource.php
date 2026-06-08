@@ -2,16 +2,13 @@
 
 namespace App\Filament\App\Resources;
 
-use App\Filament\App\Resources\RollenResource\Pages;
+use App\Filament\App\Resources\GoPilotRollenResource\Pages;
 use App\Support\RolePermissions;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\TextInput;
-use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
-use Filament\Schemas\Components\Tabs;
-use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -19,18 +16,21 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\Rules\Unique;
 use Spatie\Permission\Models\Role;
-use Spatie\Permission\PermissionRegistrar;
 
-class RollenResource extends Resource
+/**
+ * Rollen für die GoPilot Android-App (scope "gopilot", employee.* Permissions).
+ * Steuert, welche Bereiche/Kacheln einem Mitarbeiter in der App angezeigt werden.
+ */
+class GoPilotRollenResource extends Resource
 {
     protected static ?string $model = Role::class;
 
-    protected static \BackedEnum|string|null $navigationIcon = 'heroicon-o-computer-desktop';
+    protected static \BackedEnum|string|null $navigationIcon = 'heroicon-o-device-phone-mobile';
     protected static \UnitEnum|string|null $navigationGroup  = 'Einstellungen';
-    protected static ?string $navigationLabel                = 'Web-Rollen';
-    protected static ?string $modelLabel                     = 'Web-Rolle';
-    protected static ?string $pluralModelLabel               = 'Web-Rollen';
-    protected static ?int $navigationSort                    = 95;
+    protected static ?string $navigationLabel                = 'GoPilot-Rollen';
+    protected static ?string $modelLabel                     = 'GoPilot-Rolle';
+    protected static ?string $pluralModelLabel               = 'GoPilot-Rollen';
+    protected static ?int $navigationSort                    = 96;
 
     // ── Nur Partner mit settings.edit ───────────────────────────────────────
 
@@ -44,7 +44,7 @@ class RollenResource extends Resource
         return ! static::isBuiltIn($record->name);
     }
 
-    // ── Nur Rollen des eigenen Mandanten ────────────────────────────────────
+    // ── Nur GoPilot-Rollen des eigenen Mandanten ────────────────────────────
 
     public static function getEloquentQuery(): Builder
     {
@@ -52,27 +52,22 @@ class RollenResource extends Resource
         return parent::getEloquentQuery()
             ->where('tenant_id', $tenantId)
             ->where('guard_name', 'web')
-            ->where('scope', RolePermissions::SCOPE_WEB);
+            ->where('scope', RolePermissions::SCOPE_GOPILOT);
     }
 
     // ── Hilfsmethoden ────────────────────────────────────────────────────────
 
     public static function isBuiltIn(string $name): bool
     {
-        return in_array($name, RolePermissions::BUILTIN_WEB_ROLES);
+        return in_array($name, RolePermissions::BUILTIN_GOPILOT_ROLES);
     }
 
-    /**
-     * Permission-Gruppen der Web-Rolle: Web-Rechte (partner.*) plus die
-     * GoPilot-Rechte (employee.*), damit eine Web-Rolle auch App-Bereiche freigeben kann.
-     * Wird in Form (CheckboxLists) und in den Pages verwendet.
-     */
+    /** GoPilot-Permission-Gruppen (employee.*) aus dem zentralen Katalog. */
     public static function permissionGroups(): array
     {
-        return array_merge(RolePermissions::webGroups(), RolePermissions::gopilotGroups());
+        return RolePermissions::gopilotGroups();
     }
 
-    /** Eine einzelne Permission-Karte (Section + CheckboxList mit "Alle auswählen"). */
     private static function permCard(string $fieldName): Section
     {
         $group = static::permissionGroups()[$fieldName];
@@ -106,60 +101,20 @@ class RollenResource extends Resource
                         ->where('tenant_id', (int) session('tenant_id', 0))
                         ->where('guard_name', 'web'),
                 )
-                ->placeholder('z.B. Buchhalter, Filialleiter-Nord')
+                ->placeholder('z.B. Aushilfe-Shop, Nachtschicht')
                 ->helperText('Standard-Rollen können nicht umbenannt werden.')
                 ->disabledOn('edit')
                 ->dehydrated(fn (string $operation): bool => $operation === 'create'),
 
-            Tabs::make('Berechtigungen')
-                ->columnSpanFull()
-                ->tabs([
-
-                    // ── Tab 1: Kernfunktionen ─────────────────────────────
-                    Tab::make('Ressourcen')
-                        ->icon('heroicon-o-squares-2x2')
-                        ->schema([
-                            Grid::make(['default' => 1, 'md' => 2, 'xl' => 3])->schema([
-                                static::permCard('perms_dashboard'),
-                                static::permCard('perms_stations'),
-                                static::permCard('perms_employees'),
-                                static::permCard('perms_contracts'),
-                                static::permCard('perms_documents'),
-                                static::permCard('perms_document_templates'),
-                                static::permCard('perms_keys'),
-                            ]),
-                        ]),
-
-                    // ── Tab 2: GoPilot App ────────────────────────────────
-                    Tab::make('GoPilot App')
-                        ->icon('heroicon-o-device-phone-mobile')
-                        ->schema([
-                            Grid::make(['default' => 1, 'md' => 2])->schema([
-                                static::permCard('perms_gopilot_station'),
-                                static::permCard('perms_gopilot_shop'),
-                                static::permCard('perms_gopilot_bistro'),
-                                static::permCard('perms_gopilot_keys'),
-                            ]),
-                        ]),
-
-                    // ── Tab 3: Berichte & Finanzen ────────────────────────
-                    Tab::make('Berichte & Finanzen')
-                        ->icon('heroicon-o-chart-bar')
-                        ->schema([
-                            Grid::make(['default' => 1, 'md' => 2])->schema([
-                                static::permCard('perms_reports'),
-                                static::permCard('perms_billing'),
-                            ]),
-                        ]),
-
-                    // ── Tab 4: Einstellungen ──────────────────────────────
-                    Tab::make('Einstellungen')
-                        ->icon('heroicon-o-cog-6-tooth')
-                        ->schema([
-                            Grid::make(['default' => 1, 'md' => 2])->schema([
-                                static::permCard('perms_settings'),
-                            ]),
-                        ]),
+            Section::make('📱 Sichtbare Bereiche in der GoPilot App')
+                ->description('Bestimmt, welche Kacheln und Menüpunkte ein Mitarbeiter mit dieser Rolle in der App sieht.')
+                ->schema([
+                    Grid::make(['default' => 1, 'md' => 2])->schema([
+                        static::permCard('perms_gopilot_station'),
+                        static::permCard('perms_gopilot_shop'),
+                        static::permCard('perms_gopilot_bistro'),
+                        static::permCard('perms_gopilot_keys'),
+                    ]),
                 ]),
         ]);
     }
@@ -189,14 +144,14 @@ class RollenResource extends Resource
                     ->color('info'),
 
                 TextColumn::make('users_count')
-                    ->label('Benutzer')
+                    ->label('Mitarbeiter')
                     ->getStateUsing(function (Role $record): string {
                         $tenantId = (int) session('tenant_id', 0);
                         $count = \DB::table('model_has_roles')
                             ->where('role_id', $record->id)
                             ->where('tenant_id', $tenantId)
                             ->count();
-                        return $count . ' Benutzer';
+                        return $count . ' Mitarbeiter';
                     })
                     ->badge()
                     ->color('success'),
@@ -210,7 +165,7 @@ class RollenResource extends Resource
             ])
             ->headerActions([
                 \Filament\Actions\CreateAction::make()
-                    ->label('Neue Rolle erstellen'),
+                    ->label('Neue GoPilot-Rolle erstellen'),
             ]);
     }
 
@@ -219,9 +174,9 @@ class RollenResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index'  => Pages\ListRollen::route('/'),
-            'create' => Pages\CreateRolle::route('/create'),
-            'edit'   => Pages\EditRolle::route('/{record}/edit'),
+            'index'  => Pages\ListGoPilotRollen::route('/'),
+            'create' => Pages\CreateGoPilotRolle::route('/create'),
+            'edit'   => Pages\EditGoPilotRolle::route('/{record}/edit'),
         ];
     }
 }
