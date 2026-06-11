@@ -9,6 +9,7 @@ use App\Models\Station;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\PersonalAccessToken;
 
 /**
@@ -81,17 +82,38 @@ class MdeAdminController extends Controller
             ->whereIn('status', ['aktiv', 'neu'])
             ->orderBy('last_name')
             ->orderBy('first_name')
-            ->get(['id', 'ulid', 'first_name', 'last_name', 'job_title', 'scan_code', 'nfc_uid']);
+            ->get();
 
         return response()->json([
-            'employees' => $employees->map(fn ($e) => [
-                'ulid'      => $e->ulid,
-                'name'      => $e->fullName(),
-                'job_title' => $e->job_title,
-                'scan_code' => $e->scan_code,
-                'has_nfc'   => ! empty($e->nfc_uid),
-                'nfc_uid'   => $e->nfc_uid,
-            ]),
+            'employees' => $employees->map(function ($e) {
+                // Fester Zugangscode: einmal erzeugen, bleibt dann dauerhaft
+                // (wird beim NFC-Beschreiben auf den Chip geschrieben)
+                if (empty($e->scan_code)) {
+                    $e->update(['scan_code' => strtoupper(Str::random(12))]);
+                }
+
+                // Geburtsdatum lesbar formatieren (Feld ist verschluesselt gespeichert)
+                $dateOfBirth = null;
+                if (! empty($e->date_of_birth)) {
+                    try {
+                        $dateOfBirth = \Carbon\Carbon::parse($e->date_of_birth)->format('d.m.Y');
+                    } catch (\Exception $ex) {
+                        $dateOfBirth = $e->date_of_birth;
+                    }
+                }
+
+                return [
+                    'ulid'          => $e->ulid,
+                    'name'          => $e->fullName(),
+                    'job_title'     => $e->job_title,
+                    'scan_code'     => $e->scan_code,
+                    'has_nfc'       => ! empty($e->nfc_uid),
+                    'nfc_uid'       => $e->nfc_uid,
+                    // Fuer das NFC-Beschreiben (Name, Adresse, Geburtsdatum auf dem Chip)
+                    'address'       => $e->fullAddress(),
+                    'date_of_birth' => $dateOfBirth,
+                ];
+            }),
         ]);
     }
 
