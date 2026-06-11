@@ -102,6 +102,12 @@ class MdeAdminController extends Controller
                     }
                 }
 
+                // Ganzer Name fuer den Chip: Vorname Nachname, ggf. mit Geburtsname
+                $fullName = $e->fullName();
+                if (! empty($e->birth_name) && $e->birth_name !== $e->last_name) {
+                    $fullName .= ' geb. ' . $e->birth_name;
+                }
+
                 return [
                     'ulid'          => $e->ulid,
                     'name'          => $e->fullName(),
@@ -110,6 +116,7 @@ class MdeAdminController extends Controller
                     'has_nfc'       => ! empty($e->nfc_uid),
                     'nfc_uid'       => $e->nfc_uid,
                     // Fuer das NFC-Beschreiben (Name, Adresse, Geburtsdatum auf dem Chip)
+                    'full_name'     => $fullName,
                     'address'       => $e->fullAddress(),
                     'date_of_birth' => $dateOfBirth,
                 ];
